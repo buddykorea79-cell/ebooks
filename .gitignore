@@ -1,0 +1,22 @@
+# dependencies
+node_modules
+
+# build
+dist
+dist-ssr
+*.tsbuildinfo
+
+# env — 절대 커밋 금지
+.env
+.env.local
+.env.*.local
+
+# logs
+*.log
+npm-debug.log*
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
