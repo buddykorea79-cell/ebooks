@@ -105,9 +105,17 @@ export default function MyLibraryPage() {
           {books.map((book) => (
             <li
               key={book.id}
-              className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white p-4"
+              className="flex items-center gap-4 rounded-lg border border-gray-200 bg-white p-4"
             >
-              <div className="min-w-0">
+              {book.cover_url && (
+                <img
+                  src={book.cover_url}
+                  alt={`${book.title} 표지`}
+                  loading="lazy"
+                  className="h-16 w-12 shrink-0 rounded object-cover"
+                />
+              )}
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <TypeBadge type={book.type} />
                   <span

@@ -111,6 +111,14 @@ export default function HomePage() {
                 to={`/book/${book.id}`}
                 className="rounded-lg border border-gray-200 bg-white p-4 transition hover:border-blue-300 hover:shadow-sm"
               >
+                {book.cover_url && (
+                  <img
+                    src={book.cover_url}
+                    alt={`${book.title} 표지`}
+                    loading="lazy"
+                    className="mb-3 h-40 w-full rounded object-cover"
+                  />
+                )}
                 <TypeBadge type={book.type} />
                 <h3 className="mt-2 truncate text-base font-semibold">{book.title}</h3>
                 <p className="mt-1 line-clamp-2 min-h-10 text-sm text-gray-500">

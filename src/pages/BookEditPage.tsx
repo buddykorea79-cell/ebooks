@@ -5,6 +5,7 @@ import { fetchBook, updateBook } from '../api/books'
 import { fetchCategories } from '../api/categories'
 import { useAuth } from '../contexts/AuthContext'
 import BookForm, { type BookFormValues } from '../components/BookForm'
+import CoverUploader from '../components/CoverUploader'
 import CssEditorTab from '../components/CssEditorTab'
 import ErrorAlert from '../components/ErrorAlert'
 import MenuTreeEditor from '../components/MenuTreeEditor'
@@ -123,18 +124,23 @@ export default function BookEditPage() {
 
       {/* 탭 전환 시 편집 중인 상태(메뉴 선택, CSS 초안)가 사라지지 않도록 hidden으로 유지 */}
       <div className="mt-6">
-        <div className={tab === 'info' ? 'max-w-xl' : 'hidden'}>
+        <div className={tab === 'info' ? '' : 'hidden'}>
           {saved && (
-            <div className="mb-4 rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            <div className="mb-4 max-w-xl rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
               저장되었습니다 ✓
             </div>
           )}
-          <BookForm
-            categories={categories}
-            initial={book}
-            submitLabel="저장"
-            onSubmit={handleSave}
-          />
+          <div className="flex flex-col gap-8 lg:flex-row">
+            <div className="max-w-xl flex-1">
+              <BookForm
+                categories={categories}
+                initial={book}
+                submitLabel="저장"
+                onSubmit={handleSave}
+              />
+            </div>
+            <CoverUploader book={book} onSaved={setBook} />
+          </div>
         </div>
         <div className={tab === 'menus' ? '' : 'hidden'}>
           <MenuTreeEditor book={book} />
