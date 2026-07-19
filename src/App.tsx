@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { HashRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { isSupabaseConfigured } from './lib/supabase'
@@ -9,10 +10,12 @@ import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
-import DocsPage from './pages/DocsPage'
 import MyLibraryPage from './pages/MyLibraryPage'
-import BookEditPage from './pages/BookEditPage'
-import BookViewerPage from './pages/BookViewerPage'
+
+// 무거운 페이지는 지연 로딩으로 분리 (특히 편집 페이지는 CodeMirror를 포함)
+const BookEditPage = lazy(() => import('./pages/BookEditPage'))
+const BookViewerPage = lazy(() => import('./pages/BookViewerPage'))
+const DocsPage = lazy(() => import('./pages/DocsPage'))
 
 export default function App() {
   if (!isSupabaseConfigured) {
@@ -22,7 +25,10 @@ export default function App() {
   return (
     <AuthProvider>
       <HashRouter>
-        <Routes>
+        <Suspense
+          fallback={<div className="py-16 text-center text-gray-500">불러오는 중…</div>}
+        >
+          <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<HomePage />} />
             <Route path="login" element={<LoginPage />} />
@@ -38,7 +44,8 @@ export default function App() {
           {/* 뷰어는 사이드바 중심의 자체 레이아웃을 사용 */}
           <Route path="/book/:bookId" element={<BookViewerPage />} />
           <Route path="/book/:bookId/:menuId" element={<BookViewerPage />} />
-        </Routes>
+          </Routes>
+        </Suspense>
       </HashRouter>
     </AuthProvider>
   )
