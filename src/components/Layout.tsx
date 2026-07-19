@@ -31,8 +31,8 @@ export default function Layout() {
       <header className="border-b border-gray-200 bg-white">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
           <Link to="/" className="text-lg font-bold tracking-tight">
-            📚 <span className="text-blue-600">libro</span>
-            <span className="text-gray-900">space</span>
+            📚 <span className="text-blue-600">Libro</span>
+            <span className="text-gray-900">Space</span>
           </Link>
           <nav className="flex items-center gap-4 text-sm">
             <NavLink to="/" className={navClass} end>

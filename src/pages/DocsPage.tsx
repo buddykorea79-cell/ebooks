@@ -8,10 +8,10 @@ export default function DocsPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="text-3xl font-bold tracking-tight">
-        libro<span className="text-blue-600">space</span> 사용 방법
+        <span className="text-blue-600">Libro</span>Space 사용 방법
       </h1>
       <p className="mt-3 text-gray-600">
-        librospace는 지식이 모이는 공간입니다. 도서·가이드·매뉴얼을 만들고, 계층형 메뉴로
+        LibroSpace는 지식이 모이는 공간입니다. 도서·가이드·매뉴얼을 만들고, 계층형 메뉴로
         정리하고, HTML 콘텐츠를 담아 공개할 수 있습니다. 아래 순서대로 따라 하면 첫 도서를
         공개하기까지 5분이면 충분합니다.
       </p>

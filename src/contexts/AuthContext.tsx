@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabase'
+import { enteredViaRecoveryLink, supabase } from '../lib/supabase'
 
 interface AuthContextValue {
   session: Session | null
@@ -19,6 +19,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session)
       setLoading(false)
+      // 재설정 링크로 들어온 경우: 아래 PASSWORD_RECOVERY 이벤트를 타이밍상
+      // 놓쳤더라도 세션 복원이 끝난 이 시점에 확실히 이동시킨다
+      if (enteredViaRecoveryLink && data.session) {
+        window.location.hash = '#/reset-password'
+      }
     })
 
     const {

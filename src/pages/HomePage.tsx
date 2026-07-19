@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
 import type { Book, BookType, Category } from '../types/database'
 import { BOOK_TYPE_LABELS } from '../types/database'
 import { fetchPublishedBooks } from '../api/books'
@@ -24,7 +23,6 @@ interface CategoryGroup {
 }
 
 export default function HomePage() {
-  const { user } = useAuth()
   const [books, setBooks] = useState<Book[] | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -59,33 +57,17 @@ export default function HomePage() {
 
   return (
     <div>
-      {/* 히어로 */}
-      <section className="rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 px-6 py-12 text-center text-white sm:px-10 sm:py-16">
-        <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
-          libro<span className="text-blue-200">space</span>
+      {/* 히어로: 배경 없이 문구만 */}
+      <section className="py-10 text-center sm:py-14">
+        <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">
+          지식이 모이는 공간,{' '}
+          <span className="text-4xl sm:text-5xl">
+            <span className="text-blue-600">Libro</span>Space
+          </span>
         </h1>
-        <p className="mt-3 text-lg font-medium text-blue-100 sm:text-xl">지식이 모이는 공간</p>
-        <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-blue-100/90 sm:text-base">
-          도서·가이드·매뉴얼을 계층형 메뉴로 정리하고, HTML 콘텐츠를 그대로 담아
-          누구에게나 공유하세요.
-        </p>
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <Link
-            to={user ? '/my' : '/signup'}
-            className="rounded-lg bg-white px-5 py-2.5 text-sm font-bold text-blue-700 shadow hover:bg-blue-50"
-          >
-            {user ? '내 서재로 가기' : '무료로 시작하기'}
-          </Link>
-          <Link
-            to="/docs"
-            className="rounded-lg border border-white/50 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/10"
-          >
-            사용 방법 보기
-          </Link>
-        </div>
       </section>
 
-      <h2 className="mt-10 text-2xl font-bold">공개 도서</h2>
+      <h2 className="text-2xl font-bold">공개 도서</h2>
 
       <div className="mt-4 flex gap-1 rounded-lg bg-gray-100 p-1 text-sm" role="tablist">
         {FILTERS.map((f) => (
