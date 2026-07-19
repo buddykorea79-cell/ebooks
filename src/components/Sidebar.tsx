@@ -7,6 +7,8 @@ interface SidebarProps {
   book: Book
   menus: BookMenu[]
   activeMenuId: string | null
+  /** 메뉴 클릭 시 호출 — 모바일 드로어를 닫는 용도 */
+  onNavigate?: () => void
 }
 
 function TreeItem({
@@ -14,17 +16,20 @@ function TreeItem({
   depth,
   bookId,
   activeMenuId,
+  onNavigate,
 }: {
   node: MenuTreeNode
   depth: number
   bookId: string
   activeMenuId: string | null
+  onNavigate?: () => void
 }) {
   const active = node.menu.id === activeMenuId
   return (
     <li>
       <Link
         to={`/book/${bookId}/${node.menu.id}`}
+        onClick={onNavigate}
         className={`block truncate rounded px-3 py-1.5 text-sm ${
           active
             ? 'bg-blue-100 font-semibold text-blue-700'
@@ -43,6 +48,7 @@ function TreeItem({
               depth={depth + 1}
               bookId={bookId}
               activeMenuId={activeMenuId}
+              onNavigate={onNavigate}
             />
           ))}
         </ul>
@@ -52,10 +58,10 @@ function TreeItem({
 }
 
 /** 공개 뷰어 좌측 사이드바 — 메뉴 트리 재귀 렌더 */
-export default function Sidebar({ book, menus, activeMenuId }: SidebarProps) {
+export default function Sidebar({ book, menus, activeMenuId, onNavigate }: SidebarProps) {
   const tree = buildMenuTree(menus)
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-gray-200 bg-white">
+    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-gray-200 bg-white">
       <div className="border-b border-gray-100 p-4">
         <Link to="/" className="text-xs text-blue-600 hover:underline">
           ← 홈으로
@@ -82,6 +88,7 @@ export default function Sidebar({ book, menus, activeMenuId }: SidebarProps) {
                 depth={0}
                 bookId={book.id}
                 activeMenuId={activeMenuId}
+                onNavigate={onNavigate}
               />
             ))}
           </ul>

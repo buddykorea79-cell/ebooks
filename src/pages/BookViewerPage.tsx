@@ -15,6 +15,7 @@ export default function BookViewerPage() {
   const [menus, setMenus] = useState<BookMenu[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -71,12 +72,47 @@ export default function BookViewerPage() {
   const activeMenu = menuId && menus ? (menus.find((m) => m.id === menuId) ?? null) : null
 
   return (
-    <div className="flex min-h-screen bg-gray-50 text-gray-900">
+    <div className="min-h-screen bg-gray-50 text-gray-900 md:flex">
       {/* custom_css는 뷰어 셸(사이드바·헤더 등)에 항상 주입.
           콘텐츠(iframe) 주입 여부는 css_apply_to_content가 결정한다 */}
       {book.custom_css && <style>{book.custom_css}</style>}
-      <Sidebar book={book} menus={menus ?? []} activeMenuId={menuId ?? null} />
-      <main className="min-w-0 flex-1 px-6 py-5">
+
+      {/* 모바일 전용 상단 바 */}
+      <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-2.5 md:hidden">
+        <button
+          onClick={() => setSidebarOpen(true)}
+          aria-label="목차 열기"
+          className="shrink-0 rounded border border-gray-300 px-2.5 py-1 text-sm text-gray-700 hover:bg-gray-100"
+        >
+          ☰ 목차
+        </button>
+        <span className="min-w-0 truncate text-sm font-semibold">{book.title}</span>
+      </div>
+
+      {/* 모바일 드로어 배경 */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* 사이드바: 모바일=슬라이드 드로어, md 이상=항상 표시 */}
+      <div
+        className={`fixed inset-y-0 left-0 z-40 transition-transform duration-200 md:static md:z-auto md:shrink-0 md:translate-x-0 md:transition-none ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <Sidebar
+          book={book}
+          menus={menus ?? []}
+          activeMenuId={menuId ?? null}
+          onNavigate={() => setSidebarOpen(false)}
+        />
+      </div>
+
+      <main className="min-w-0 flex-1 px-4 py-5 sm:px-6">
         {menus !== null && menus.length === 0 && (
           <p className="text-gray-500">아직 등록된 메뉴가 없습니다.</p>
         )}
