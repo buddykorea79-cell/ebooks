@@ -23,8 +23,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession)
+      // 재설정 메일 링크로 돌아온 경우 → 새 비밀번호 설정 화면으로
+      if (event === 'PASSWORD_RECOVERY') {
+        window.location.hash = '#/reset-password'
+      }
     })
 
     return () => subscription.unsubscribe()

@@ -30,12 +30,16 @@ export default function Layout() {
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <header className="border-b border-gray-200 bg-white">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-          <Link to="/" className="text-lg font-bold">
-            📚 북허브
+          <Link to="/" className="text-lg font-bold tracking-tight">
+            📚 <span className="text-blue-600">libro</span>
+            <span className="text-gray-900">space</span>
           </Link>
           <nav className="flex items-center gap-4 text-sm">
-            <NavLink to="/" className={navClass}>
+            <NavLink to="/" className={navClass} end>
               홈
+            </NavLink>
+            <NavLink to="/docs" className={navClass}>
+              Docs
             </NavLink>
             <NavLink to="/my" className={navClass}>
               내 서재

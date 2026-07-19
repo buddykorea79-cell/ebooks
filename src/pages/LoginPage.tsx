@@ -83,6 +83,11 @@ export default function LoginPage() {
           회원가입
         </Link>
       </p>
+      <p className="mt-2 text-center text-sm">
+        <Link to="/forgot-password" className="text-gray-500 hover:text-blue-600 hover:underline">
+          비밀번호를 잊으셨나요?
+        </Link>
+      </p>
     </div>
   )
 }
