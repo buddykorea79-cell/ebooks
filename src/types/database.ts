@@ -12,6 +12,12 @@ export interface Category {
   sort_order: number
 }
 
+export interface Profile {
+  id: string
+  nickname: string
+  created_at: string
+}
+
 export interface Book {
   id: string
   category_id: string | null

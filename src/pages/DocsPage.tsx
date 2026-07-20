@@ -20,8 +20,9 @@ export default function DocsPage() {
         <h2 className="border-b border-gray-200 pb-2 text-xl font-bold">1. 시작하기</h2>
         <ul className="mt-4 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-gray-700">
           <li>
-            오른쪽 위 <strong>로그인 → 회원가입</strong>에서 이메일과 비밀번호(6자 이상)로
-            가입합니다. 인증 메일이 오면 링크를 눌러 인증을 완료하세요.
+            오른쪽 위 <strong>로그인 → 회원가입</strong>에서 닉네임, 이메일, 비밀번호(6자
+            이상)로 가입합니다. 닉네임은 화면 상단과 공개 도서의 작성자 이름으로 표시됩니다.
+            인증 메일이 오면 링크를 눌러 인증을 완료하세요.
           </li>
           <li>
             비밀번호를 잊었다면 로그인 화면의{' '}

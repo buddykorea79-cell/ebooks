@@ -6,6 +6,7 @@ import { authErrorMessage, signUpWithEmail } from '../api/auth'
 export default function SignupPage() {
   const { session, loading } = useAuth()
   const navigate = useNavigate()
+  const [nickname, setNickname] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
@@ -21,6 +22,10 @@ export default function SignupPage() {
     e.preventDefault()
     setError(null)
 
+    if (!nickname.trim()) {
+      setError('닉네임을 입력하세요.')
+      return
+    }
     if (password.length < 6) {
       setError('비밀번호는 6자 이상이어야 합니다.')
       return
@@ -32,7 +37,7 @@ export default function SignupPage() {
 
     setSubmitting(true)
     try {
-      const data = await signUpWithEmail(email, password)
+      const data = await signUpWithEmail(email, password, nickname.trim())
       // 이메일 인증이 켜져 있으면 기존 가입 이메일에 대해 identities가 빈 배열로 온다
       if (data.user && data.user.identities && data.user.identities.length === 0) {
         setError('이미 가입된 이메일입니다.')
@@ -75,6 +80,22 @@ export default function SignupPage() {
     <div className="mx-auto max-w-sm">
       <h1 className="text-2xl font-bold">회원가입</h1>
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+        <div>
+          <label htmlFor="nickname" className="block text-sm font-medium text-gray-700">
+            닉네임 <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="nickname"
+            type="text"
+            required
+            maxLength={20}
+            autoComplete="nickname"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            placeholder="화면에 표시될 이름 (최대 20자)"
+            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          />
+        </div>
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-gray-700">
             이메일

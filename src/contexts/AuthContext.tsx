@@ -1,10 +1,13 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { enteredViaRecoveryLink, supabase } from '../lib/supabase'
+import { fetchProfile } from '../api/profiles'
 
 interface AuthContextValue {
   session: Session | null
   user: User | null
+  /** 내 닉네임. 메타데이터 → profiles 순으로 조회하며, 없으면 null (이메일로 대체 표시) */
+  nickname: string | null
   /** 초기 세션 복원이 끝나기 전까지 true. 라우트 가드는 이 값이 false일 때만 판정한다. */
   loading: boolean
 }
@@ -13,7 +16,34 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
+  const [nickname, setNickname] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // 닉네임 결정: 가입 시 메타데이터에 있으면 그걸, 없으면(기존 가입자) profiles에서
+  useEffect(() => {
+    const user = session?.user
+    if (!user) {
+      setNickname(null)
+      return
+    }
+    const meta = user.user_metadata as Record<string, unknown> | undefined
+    const metaNickname = typeof meta?.nickname === 'string' ? meta.nickname.trim() : ''
+    if (metaNickname) {
+      setNickname(metaNickname)
+      return
+    }
+    let cancelled = false
+    fetchProfile(user.id)
+      .then((profile) => {
+        if (!cancelled && profile) setNickname(profile.nickname)
+      })
+      .catch(() => {
+        // profiles 테이블이 아직 없어도 앱은 동작해야 함 (이메일로 대체 표시)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [session])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -40,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, loading }}>
+    <AuthContext.Provider value={{ session, user: session?.user ?? null, nickname, loading }}>
       {children}
     </AuthContext.Provider>
   )

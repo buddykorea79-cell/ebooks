@@ -8,7 +8,7 @@ function navClass({ isActive }: { isActive: boolean }) {
 }
 
 export default function Layout() {
-  const { user } = useAuth()
+  const { user, nickname } = useAuth()
   const navigate = useNavigate()
   const [signingOut, setSigningOut] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -46,8 +46,8 @@ export default function Layout() {
             </NavLink>
             {user ? (
               <div className="flex items-center gap-2">
-                <span className="hidden max-w-40 truncate text-xs text-gray-400 sm:inline">
-                  {user.email}
+                <span className="hidden max-w-40 truncate text-xs text-gray-500 sm:inline">
+                  {nickname ?? user.email}
                 </span>
                 <button
                   onClick={handleSignOut}

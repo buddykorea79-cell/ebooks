@@ -1,7 +1,12 @@
 import { supabase } from '../lib/supabase'
 
-export async function signUpWithEmail(email: string, password: string) {
-  const { data, error } = await supabase.auth.signUp({ email, password })
+export async function signUpWithEmail(email: string, password: string, nickname: string) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    // DB 트리거(handle_new_user)가 이 메타데이터로 profiles 행을 만든다
+    options: { data: { nickname } },
+  })
   if (error) throw error
   return data
 }

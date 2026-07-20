@@ -4,6 +4,7 @@ import type { Book, BookType, Category } from '../types/database'
 import { BOOK_TYPE_LABELS } from '../types/database'
 import { fetchPublishedBooks } from '../api/books'
 import { fetchCategories } from '../api/categories'
+import { fetchNicknames } from '../api/profiles'
 import ErrorAlert from '../components/ErrorAlert'
 import TypeBadge from '../components/TypeBadge'
 
@@ -25,6 +26,7 @@ interface CategoryGroup {
 export default function HomePage() {
   const [books, setBooks] = useState<Book[] | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
+  const [nicknames, setNicknames] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<TypeFilter>('all')
 
@@ -34,6 +36,11 @@ export default function HomePage() {
         const [b, c] = await Promise.all([fetchPublishedBooks(), fetchCategories()])
         setBooks(b)
         setCategories(c)
+        try {
+          setNicknames(await fetchNicknames(b.map((x) => x.owner_id)))
+        } catch {
+          // profiles 테이블이 아직 없어도 목록은 표시되어야 함
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         setError(`목록을 불러오지 못했습니다: ${msg}`)
@@ -121,6 +128,11 @@ export default function HomePage() {
                 )}
                 <TypeBadge type={book.type} />
                 <h3 className="mt-2 truncate text-base font-semibold">{book.title}</h3>
+                {nicknames[book.owner_id] && (
+                  <p className="mt-0.5 truncate text-xs text-gray-400">
+                    {nicknames[book.owner_id]}
+                  </p>
+                )}
                 <p className="mt-1 line-clamp-2 min-h-10 text-sm text-gray-500">
                   {book.description ?? ''}
                 </p>
