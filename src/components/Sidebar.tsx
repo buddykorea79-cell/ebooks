@@ -61,7 +61,7 @@ function TreeItem({
 export default function Sidebar({ book, menus, activeMenuId, onNavigate }: SidebarProps) {
   const tree = buildMenuTree(menus)
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-gray-200 bg-white">
+    <aside className="flex h-full w-80 shrink-0 flex-col border-r border-gray-200 bg-white">
       <div className="border-b border-gray-100 p-4">
         <Link to="/" className="text-xs text-blue-600 hover:underline">
           ← 홈으로
