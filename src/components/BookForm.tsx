@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import type { Book, BookType, Category } from '../types/database'
-import { BOOK_TYPE_LABELS } from '../types/database'
+import { useBookTypes } from '../api/bookTypes'
 import ErrorAlert from './ErrorAlert'
 
 export interface BookFormValues {
@@ -30,9 +30,15 @@ export default function BookForm({
   onSubmit,
   onCancel,
 }: BookFormProps) {
+  const types = useBookTypes()
   const [title, setTitle] = useState(initial?.title ?? '')
   const [categoryId, setCategoryId] = useState(initial?.category_id ?? '')
-  const [type, setType] = useState<BookType>(initial?.type ?? 'book')
+  const [type, setType] = useState<BookType>(initial?.type ?? '')
+
+  // 새 도서 모드: 유형 목록이 로드되면 첫 번째 유형을 기본값으로
+  useEffect(() => {
+    if (!type && types.length > 0) setType(types[0].id)
+  }, [type, types])
   const [description, setDescription] = useState(initial?.description ?? '')
   const [isPublished, setIsPublished] = useState(initial?.is_published ?? false)
   const [error, setError] = useState<string | null>(null)
@@ -42,6 +48,10 @@ export default function BookForm({
     e.preventDefault()
     if (!title.trim()) {
       setError('제목을 입력하세요.')
+      return
+    }
+    if (!type) {
+      setError('유형을 선택하세요.')
       return
     }
     setError(null)
@@ -103,12 +113,12 @@ export default function BookForm({
           <select
             id="book-type"
             value={type}
-            onChange={(e) => setType(e.target.value as BookType)}
+            onChange={(e) => setType(e.target.value)}
             className={inputClass}
           >
-            {(Object.keys(BOOK_TYPE_LABELS) as BookType[]).map((t) => (
-              <option key={t} value={t}>
-                {BOOK_TYPE_LABELS[t]}
+            {types.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
               </option>
             ))}
           </select>

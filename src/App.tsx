@@ -16,6 +16,7 @@ import MyLibraryPage from './pages/MyLibraryPage'
 const BookEditPage = lazy(() => import('./pages/BookEditPage'))
 const BookViewerPage = lazy(() => import('./pages/BookViewerPage'))
 const DocsPage = lazy(() => import('./pages/DocsPage'))
+const AdminPage = lazy(() => import('./pages/AdminPage'))
 
 export default function App() {
   if (!isSupabaseConfigured) {
@@ -39,6 +40,7 @@ export default function App() {
             <Route element={<RequireAuth />}>
               <Route path="my" element={<MyLibraryPage />} />
               <Route path="book/:bookId/edit" element={<BookEditPage />} />
+              <Route path="admin" element={<AdminPage />} />
             </Route>
           </Route>
           {/* 뷰어는 사이드바 중심의 자체 레이아웃을 사용 */}

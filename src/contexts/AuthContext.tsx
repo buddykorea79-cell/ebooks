@@ -8,6 +8,8 @@ interface AuthContextValue {
   user: User | null
   /** 내 닉네임. 메타데이터 → profiles 순으로 조회하며, 없으면 null (이메일로 대체 표시) */
   nickname: string | null
+  /** 관리자 여부. null이면 아직 판정 전(프로필 조회 중) */
+  isAdmin: boolean | null
   /** 초기 세션 복원이 끝나기 전까지 true. 라우트 가드는 이 값이 false일 때만 판정한다. */
   loading: boolean
 }
@@ -17,28 +19,31 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [nickname, setNickname] = useState<string | null>(null)
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // 닉네임 결정: 가입 시 메타데이터에 있으면 그걸, 없으면(기존 가입자) profiles에서
+  // 닉네임(메타데이터 → profiles 순)과 관리자 여부(profiles.is_admin) 판정
   useEffect(() => {
     const user = session?.user
     if (!user) {
       setNickname(null)
+      setIsAdmin(false)
       return
     }
     const meta = user.user_metadata as Record<string, unknown> | undefined
     const metaNickname = typeof meta?.nickname === 'string' ? meta.nickname.trim() : ''
-    if (metaNickname) {
-      setNickname(metaNickname)
-      return
-    }
+    if (metaNickname) setNickname(metaNickname)
+    setIsAdmin(null)
     let cancelled = false
     fetchProfile(user.id)
       .then((profile) => {
-        if (!cancelled && profile) setNickname(profile.nickname)
+        if (cancelled) return
+        if (profile && !metaNickname) setNickname(profile.nickname)
+        setIsAdmin(profile?.is_admin === true)
       })
       .catch(() => {
         // profiles 테이블이 아직 없어도 앱은 동작해야 함 (이메일로 대체 표시)
+        if (!cancelled) setIsAdmin(false)
       })
     return () => {
       cancelled = true
@@ -70,7 +75,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, nickname, loading }}>
+    <AuthContext.Provider
+      value={{ session, user: session?.user ?? null, nickname, isAdmin, loading }}
+    >
       {children}
     </AuthContext.Provider>
   )

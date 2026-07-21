@@ -1,10 +1,18 @@
-export type BookType = 'book' | 'guide' | 'manual'
+/** 유형 id (book_types.id). admin.sql 실행 전에는 'book'|'guide'|'manual' 고정 */
+export type BookType = string
 
-export const BOOK_TYPE_LABELS: Record<BookType, string> = {
-  book: '도서',
-  guide: '가이드',
-  manual: '매뉴얼',
+export interface BookTypeRow {
+  id: BookType
+  name: string
+  sort_order: number
 }
+
+/** book_types 테이블이 아직 없을 때 사용하는 기본 유형 (schema.sql의 check 제약과 동일) */
+export const DEFAULT_BOOK_TYPES: BookTypeRow[] = [
+  { id: 'book', name: '도서', sort_order: 1 },
+  { id: 'guide', name: '가이드', sort_order: 2 },
+  { id: 'manual', name: '매뉴얼', sort_order: 3 },
+]
 
 export interface Category {
   id: string
@@ -15,7 +23,14 @@ export interface Category {
 export interface Profile {
   id: string
   nickname: string
+  /** admin.sql 실행 전에는 컬럼이 없어 undefined */
+  is_admin?: boolean
   created_at: string
+}
+
+export interface SiteSettings {
+  id: number
+  recommend_enabled: boolean
 }
 
 export interface Book {

@@ -8,7 +8,7 @@ function navClass({ isActive }: { isActive: boolean }) {
 }
 
 export default function Layout() {
-  const { user, nickname } = useAuth()
+  const { user, nickname, isAdmin } = useAuth()
   const navigate = useNavigate()
   const [signingOut, setSigningOut] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -44,6 +44,11 @@ export default function Layout() {
             <NavLink to="/my" className={navClass}>
               내 서재
             </NavLink>
+            {isAdmin === true && (
+              <NavLink to="/admin" className={navClass}>
+                관리자
+              </NavLink>
+            )}
             {user ? (
               <div className="flex items-center gap-2">
                 <span className="hidden max-w-40 truncate text-xs text-gray-500 sm:inline">
