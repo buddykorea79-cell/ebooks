@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import type { Book, BookType, Category } from '../types/database'
+import type { Book, BookType, Category, ContentFormat } from '../types/database'
 import { useBookTypes } from '../api/bookTypes'
 import ErrorAlert from './ErrorAlert'
 
@@ -8,6 +8,7 @@ export interface BookFormValues {
   category_id: string | null
   type: BookType
   description: string | null
+  content_format: ContentFormat
   is_published: boolean
 }
 
@@ -34,6 +35,9 @@ export default function BookForm({
   const [title, setTitle] = useState(initial?.title ?? '')
   const [categoryId, setCategoryId] = useState(initial?.category_id ?? '')
   const [type, setType] = useState<BookType>(initial?.type ?? '')
+  const [contentFormat, setContentFormat] = useState<ContentFormat>(
+    initial?.content_format ?? 'html',
+  )
 
   // 새 도서 모드: 유형 목록이 로드되면 첫 번째 유형을 기본값으로
   useEffect(() => {
@@ -62,6 +66,7 @@ export default function BookForm({
         category_id: categoryId || null,
         type,
         description: description.trim() || null,
+        content_format: contentFormat,
         is_published: isPublished,
       })
     } catch (err) {
@@ -124,6 +129,34 @@ export default function BookForm({
           </select>
         </div>
       </div>
+
+      <fieldset>
+        <legend className="block text-sm font-medium text-gray-700">본문 형식</legend>
+        <div className="mt-1 flex gap-4">
+          {(
+            [
+              { value: 'html', label: 'HTML' },
+              { value: 'markdown', label: '마크다운 (MD)' },
+            ] as { value: ContentFormat; label: string }[]
+          ).map((f) => (
+            <label key={f.value} className="flex items-center gap-1.5 text-sm text-gray-700">
+              <input
+                type="radio"
+                name="content-format"
+                value={f.value}
+                checked={contentFormat === f.value}
+                onChange={() => setContentFormat(f.value)}
+                className="h-4 w-4"
+              />
+              {f.label}
+            </label>
+          ))}
+        </div>
+        <p className="mt-1 text-xs text-gray-400">
+          메뉴 콘텐츠를 작성·표시할 형식입니다. 이미 작성된 콘텐츠는 변환되지 않으니 도중에
+          바꾸면 기존 메뉴가 이상하게 보일 수 있습니다.
+        </p>
+      </fieldset>
 
       <div>
         <label htmlFor="book-description" className="block text-sm font-medium text-gray-700">

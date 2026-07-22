@@ -77,11 +77,15 @@ export default function DocsPage() {
         <h2 className="border-b border-gray-200 pb-2 text-xl font-bold">4. 콘텐츠 등록</h2>
         <ul className="mt-4 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-gray-700">
           <li>
-            메뉴 관리 탭에서 <strong>메뉴 이름을 클릭</strong>하면 아래에 HTML 편집기가
-            열립니다.
+            기본정보 탭의 <strong>본문 형식</strong>에서 콘텐츠를 <strong>HTML</strong>로 쓸지{' '}
+            <strong>마크다운(MD)</strong>으로 쓸지 선택할 수 있습니다. 마크다운을 선택하면
+            편집기가 마크다운 문법을 강조하고, 뷰어가 자동으로 보기 좋은 문서로 변환해 줍니다.
           </li>
           <li>
-            왼쪽 편집기에 HTML을 붙여넣고 <strong>저장</strong>을 누르면 오른쪽 미리보기에 바로
+            메뉴 관리 탭에서 <strong>메뉴 이름을 클릭</strong>하면 아래에 편집기가 열립니다.
+          </li>
+          <li>
+            왼쪽 편집기에 내용을 입력하고 <strong>저장</strong>을 누르면 오른쪽 미리보기에 바로
             반영됩니다.
           </li>
           <li>

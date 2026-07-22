@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { html as htmlLang } from '@codemirror/lang-html'
+import { markdown as markdownLang } from '@codemirror/lang-markdown'
 import type { Book, BookMenu } from '../types/database'
+import { MARKDOWN_BASE_CSS, renderMarkdown } from '../lib/markdown'
 import {
   createMenu,
   deleteMenu,
@@ -30,6 +32,8 @@ const iconBtn =
 
 export default function MenuTreeEditor({ book }: MenuTreeEditorProps) {
   const bookId = book.id
+  const isMarkdown = (book.content_format ?? 'html') === 'markdown'
+  const formatLabel = isMarkdown ? '마크다운' : 'HTML'
   const [menus, setMenus] = useState<BookMenu[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -79,7 +83,7 @@ export default function MenuTreeEditor({ book }: MenuTreeEditorProps) {
     if (menu.id === selectedId) return
     if (
       draftDirty &&
-      !window.confirm('저장하지 않은 HTML 변경사항이 있습니다. 버리고 다른 메뉴로 이동할까요?')
+      !window.confirm('저장하지 않은 변경사항이 있습니다. 버리고 다른 메뉴로 이동할까요?')
     ) {
       return
     }
@@ -206,7 +210,7 @@ export default function MenuTreeEditor({ book }: MenuTreeEditorProps) {
               ) : (
                 <button
                   onClick={() => handleSelect(menu)}
-                  title="클릭하면 HTML을 편집합니다"
+                  title={`클릭하면 ${formatLabel} 콘텐츠를 편집합니다`}
                   className={`truncate text-left text-sm ${
                     isSelected ? 'font-semibold text-blue-700' : 'text-gray-800'
                   }`}
@@ -295,7 +299,9 @@ export default function MenuTreeEditor({ book }: MenuTreeEditorProps) {
   return (
     <div>
       <div className="flex max-w-3xl items-center justify-between">
-        <p className="text-sm text-gray-500">메뉴 이름을 클릭하면 HTML 콘텐츠를 편집할 수 있습니다.</p>
+        <p className="text-sm text-gray-500">
+          메뉴 이름을 클릭하면 {formatLabel} 콘텐츠를 편집할 수 있습니다.
+        </p>
         <button
           onClick={() => handleAdd(null)}
           disabled={busy || menus === null}
@@ -323,7 +329,7 @@ export default function MenuTreeEditor({ book }: MenuTreeEditorProps) {
         <div className="mt-8 border-t border-gray-200 pt-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-base font-semibold">
-              '{selectedMenu.title}' HTML 편집
+              '{selectedMenu.title}' {formatLabel} 편집
             </h3>
             <div className="flex items-center gap-2">
               {htmlSaved && !draftDirty && (
@@ -346,9 +352,13 @@ export default function MenuTreeEditor({ book }: MenuTreeEditorProps) {
               <CodeMirror
                 value={draft}
                 height="520px"
-                extensions={[htmlLang()]}
+                extensions={[isMarkdown ? markdownLang() : htmlLang()]}
                 onChange={(value) => setDraft(value)}
-                placeholder="Claude 아티팩트 등에서 복사한 HTML을 붙여넣으세요"
+                placeholder={
+                  isMarkdown
+                    ? '마크다운(MD) 문서를 작성하거나 붙여넣으세요'
+                    : 'Claude 아티팩트 등에서 복사한 HTML을 붙여넣으세요'
+                }
               />
             </div>
             <div>
@@ -357,12 +367,24 @@ export default function MenuTreeEditor({ book }: MenuTreeEditorProps) {
                 {selectedMenu.html_content ? (
                   <HtmlViewer
                     menuId={selectedMenu.id}
-                    html={selectedMenu.html_content}
-                    injectedCss={book.css_apply_to_content ? book.custom_css : null}
+                    html={
+                      isMarkdown
+                        ? renderMarkdown(selectedMenu.html_content)
+                        : selectedMenu.html_content
+                    }
+                    injectedCss={
+                      [
+                        isMarkdown ? MARKDOWN_BASE_CSS : '',
+                        book.css_apply_to_content ? (book.custom_css ?? '') : '',
+                      ]
+                        .filter(Boolean)
+                        .join('\n') || null
+                    }
                   />
                 ) : (
                   <p className="p-4 text-sm text-gray-400">
-                    저장된 콘텐츠가 없습니다. HTML을 입력하고 저장하면 여기에 표시됩니다.
+                    저장된 콘텐츠가 없습니다. {formatLabel} 콘텐츠를 입력하고 저장하면 여기에
+                    표시됩니다.
                   </p>
                 )}
               </div>

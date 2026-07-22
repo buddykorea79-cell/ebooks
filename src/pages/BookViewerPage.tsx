@@ -4,6 +4,7 @@ import type { Book, BookMenu } from '../types/database'
 import { fetchBook } from '../api/books'
 import { fetchMenus } from '../api/menus'
 import { buildMenuTree } from '../lib/menuTree'
+import { MARKDOWN_BASE_CSS, renderMarkdown } from '../lib/markdown'
 import ErrorAlert from '../components/ErrorAlert'
 import HtmlViewer from '../components/HtmlViewer'
 import Sidebar from '../components/Sidebar'
@@ -70,6 +71,14 @@ export default function BookViewerPage() {
   }
 
   const activeMenu = menuId && menus ? (menus.find((m) => m.id === menuId) ?? null) : null
+  const isMarkdown = (book.content_format ?? 'html') === 'markdown'
+  const contentCss =
+    [
+      isMarkdown ? MARKDOWN_BASE_CSS : '',
+      book.css_apply_to_content ? (book.custom_css ?? '') : '',
+    ]
+      .filter(Boolean)
+      .join('\n') || null
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 md:flex">
@@ -131,8 +140,10 @@ export default function BookViewerPage() {
                 <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
                   <HtmlViewer
                     menuId={activeMenu.id}
-                    html={activeMenu.html_content}
-                    injectedCss={book.css_apply_to_content ? book.custom_css : null}
+                    html={
+                      isMarkdown ? renderMarkdown(activeMenu.html_content) : activeMenu.html_content
+                    }
+                    injectedCss={contentCss}
                   />
                 </div>
               ) : (

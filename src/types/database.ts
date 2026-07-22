@@ -33,6 +33,9 @@ export interface SiteSettings {
   recommend_enabled: boolean
 }
 
+/** 메뉴 콘텐츠(html_content)를 어떤 형식으로 작성·렌더링할지 */
+export type ContentFormat = 'html' | 'markdown'
+
 export interface Book {
   id: string
   category_id: string | null
@@ -43,6 +46,8 @@ export interface Book {
   cover_url: string | null
   custom_css: string | null
   css_apply_to_content: boolean
+  /** content-format.sql 실행 전에는 컬럼이 없어 undefined → 'html'로 간주 */
+  content_format?: ContentFormat
   is_published: boolean
   created_at: string
   updated_at: string
