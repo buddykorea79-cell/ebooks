@@ -17,6 +17,7 @@ const BookEditPage = lazy(() => import('./pages/BookEditPage'))
 const BookViewerPage = lazy(() => import('./pages/BookViewerPage'))
 const DocsPage = lazy(() => import('./pages/DocsPage'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
+const SearchPage = lazy(() => import('./pages/SearchPage'))
 
 export default function App() {
   if (!isSupabaseConfigured) {
@@ -37,6 +38,7 @@ export default function App() {
             <Route path="forgot-password" element={<ForgotPasswordPage />} />
             <Route path="reset-password" element={<ResetPasswordPage />} />
             <Route path="docs" element={<DocsPage />} />
+            <Route path="search" element={<SearchPage />} />
             <Route element={<RequireAuth />}>
               <Route path="my" element={<MyLibraryPage />} />
               <Route path="book/:bookId/edit" element={<BookEditPage />} />

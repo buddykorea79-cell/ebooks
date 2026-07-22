@@ -1,10 +1,41 @@
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { authErrorMessage, signOut } from '../api/auth'
 
 function navClass({ isActive }: { isActive: boolean }) {
   return isActive ? 'font-semibold text-blue-600' : 'text-gray-600 hover:text-gray-900'
+}
+
+/** 헤더 검색창 (sm 이상에서 표시, 모바일은 🔍 링크로 검색 페이지 이동) */
+function HeaderSearch() {
+  const navigate = useNavigate()
+  const [q, setQ] = useState('')
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    const next = q.trim()
+    if (!next) return
+    navigate(`/search?q=${encodeURIComponent(next)}`)
+    setQ('')
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="hidden min-w-0 flex-1 justify-end sm:flex">
+      <input
+        type="search"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="검색 🔍"
+        aria-label="도서 검색"
+        className="w-full max-w-48 rounded-full border border-gray-300 px-3 py-1 text-sm focus:border-blue-500 focus:outline-none"
+      />
+      {/* 숨은 제출 버튼: 일부 환경에서 버튼 없는 폼의 Enter 암시적 제출이 안 되는 경우 대비 */}
+      <button type="submit" className="sr-only">
+        검색
+      </button>
+    </form>
+  )
 }
 
 export default function Layout() {
@@ -30,11 +61,19 @@ export default function Layout() {
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <header className="border-b border-gray-200 bg-white">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-          <Link to="/" className="text-lg font-bold tracking-tight">
+          <Link to="/" className="shrink-0 text-lg font-bold tracking-tight">
             📚 <span className="text-blue-600">Libro</span>
             <span className="text-gray-900">Space</span>
           </Link>
-          <nav className="flex items-center gap-4 text-sm">
+          <HeaderSearch />
+          <nav className="flex shrink-0 items-center gap-4 pl-4 text-sm">
+            <NavLink
+              to="/search"
+              aria-label="검색"
+              className={(p) => `sm:hidden ${navClass(p)}`}
+            >
+              🔍
+            </NavLink>
             <NavLink to="/" className={navClass} end>
               홈
             </NavLink>
