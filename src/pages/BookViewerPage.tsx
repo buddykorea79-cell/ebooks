@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Book, BookMenu } from '../types/database'
 import { fetchBook } from '../api/books'
 import { fetchMenus } from '../api/menus'
 import { buildMenuTree } from '../lib/menuTree'
-import { MARKDOWN_BASE_CSS, renderMarkdown } from '../lib/markdown'
+import { MARKDOWN_BASE_CSS, renderMarkdown, splitMarkdownSections } from '../lib/markdown'
 import ErrorAlert from '../components/ErrorAlert'
 import HtmlViewer from '../components/HtmlViewer'
 import Sidebar from '../components/Sidebar'
+import TypeBadge from '../components/TypeBadge'
 
 export default function BookViewerPage() {
   const { bookId, menuId } = useParams<{ bookId: string; menuId: string }>()
@@ -17,6 +18,11 @@ export default function BookViewerPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  const isSingle = book !== null && (book.source_mode ?? 'menu') === 'single'
+  const isMarkdown = book !== null && (book.content_format ?? 'html') === 'markdown'
+  // 단일 HTML 파일: 메뉴 없이 전체 화면으로 렌더링
+  const isSingleHtml = isSingle && !isMarkdown
 
   useEffect(() => {
     async function load() {
@@ -37,15 +43,32 @@ export default function BookViewerPage() {
     load()
   }, [bookId])
 
-  // menuId 없이 들어오면 트리상 첫 메뉴로 이동
+  // 단일 마크다운 파일: H1·H2 기준으로 분할한 섹션을 가상 메뉴 트리로 사용
+  const virtualMenus = useMemo<BookMenu[] | null>(() => {
+    if (!book || !isSingle || !isMarkdown) return null
+    return splitMarkdownSections(book.single_content ?? '').map((s, i) => ({
+      id: s.id,
+      book_id: book.id,
+      parent_id: s.parentId,
+      title: s.title,
+      sort_order: i,
+      html_content: s.content,
+      updated_at: '',
+    }))
+  }, [book, isSingle, isMarkdown])
+
+  const effectiveMenus = virtualMenus ?? menus
+
+  // menuId 없이 들어오면 트리상 첫 메뉴로 이동 (단일 HTML 모드는 메뉴가 없으므로 제외)
   useEffect(() => {
-    if (!menuId && bookId && menus && menus.length > 0) {
-      const tree = buildMenuTree(menus)
+    if (isSingleHtml) return
+    if (!menuId && bookId && effectiveMenus && effectiveMenus.length > 0) {
+      const tree = buildMenuTree(effectiveMenus)
       if (tree.length > 0) {
         navigate(`/book/${bookId}/${tree[0].menu.id}`, { replace: true })
       }
     }
-  }, [menuId, bookId, menus, navigate])
+  }, [menuId, bookId, effectiveMenus, isSingleHtml, navigate])
 
   if (loading) {
     return (
@@ -70,8 +93,49 @@ export default function BookViewerPage() {
     )
   }
 
-  const activeMenu = menuId && menus ? (menus.find((m) => m.id === menuId) ?? null) : null
-  const isMarkdown = (book.content_format ?? 'html') === 'markdown'
+  // ---------------------------------------------------------------
+  // 단일 HTML 파일 모드: 좌측 메뉴 없이 상단 바 + 전체 폭 콘텐츠
+  // ---------------------------------------------------------------
+  if (isSingleHtml) {
+    return (
+      <div className="min-h-screen bg-gray-50 text-gray-900">
+        {book.custom_css && <style>{book.custom_css}</style>}
+        <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-2.5">
+          <Link
+            to="/"
+            className="shrink-0 rounded border border-gray-300 px-2.5 py-1 text-sm text-gray-700 hover:bg-gray-100"
+          >
+            ← 홈
+          </Link>
+          <TypeBadge type={book.type} />
+          {!book.is_published && (
+            <span className="inline-block shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-500">
+              비공개
+            </span>
+          )}
+          <span className="min-w-0 truncate text-sm font-semibold">{book.title}</span>
+        </div>
+        <main className="bg-white">
+          {book.single_content ? (
+            <HtmlViewer
+              menuId="single"
+              html={book.single_content}
+              injectedCss={book.css_apply_to_content ? book.custom_css : null}
+              minHeight={400}
+            />
+          ) : (
+            <p className="px-6 py-10 text-gray-500">아직 업로드된 콘텐츠가 없습니다.</p>
+          )}
+        </main>
+      </div>
+    )
+  }
+
+  // ---------------------------------------------------------------
+  // 메뉴 구성 모드 + 단일 마크다운 모드(자동 목차): 사이드바 레이아웃
+  // ---------------------------------------------------------------
+  const activeMenu =
+    menuId && effectiveMenus ? (effectiveMenus.find((m) => m.id === menuId) ?? null) : null
   const contentCss =
     [
       isMarkdown ? MARKDOWN_BASE_CSS : '',
@@ -79,6 +143,9 @@ export default function BookViewerPage() {
     ]
       .filter(Boolean)
       .join('\n') || null
+  const emptyMessage = isSingle
+    ? '아직 업로드된 콘텐츠가 없습니다.'
+    : '아직 등록된 메뉴가 없습니다.'
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 md:flex">
@@ -115,18 +182,18 @@ export default function BookViewerPage() {
       >
         <Sidebar
           book={book}
-          menus={menus ?? []}
+          menus={effectiveMenus ?? []}
           activeMenuId={menuId ?? null}
           onNavigate={() => setSidebarOpen(false)}
         />
       </div>
 
       <main className="min-w-0 flex-1 px-4 py-5 sm:px-6">
-        {menus !== null && menus.length === 0 && (
-          <p className="text-gray-500">아직 등록된 메뉴가 없습니다.</p>
+        {effectiveMenus !== null && effectiveMenus.length === 0 && (
+          <p className="text-gray-500">{emptyMessage}</p>
         )}
 
-        {menuId && menus !== null && menus.length > 0 && !activeMenu && (
+        {menuId && effectiveMenus !== null && effectiveMenus.length > 0 && !activeMenu && (
           <ErrorAlert message="메뉴를 찾을 수 없습니다. 삭제되었을 수 있습니다." />
         )}
 

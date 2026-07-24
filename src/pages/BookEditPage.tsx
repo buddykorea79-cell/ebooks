@@ -9,14 +9,9 @@ import CoverUploader from '../components/CoverUploader'
 import CssEditorTab from '../components/CssEditorTab'
 import ErrorAlert from '../components/ErrorAlert'
 import MenuTreeEditor from '../components/MenuTreeEditor'
+import SingleContentTab from '../components/SingleContentTab'
 
 type Tab = 'info' | 'menus' | 'css'
-
-const TABS: { value: Tab; label: string }[] = [
-  { value: 'info', label: '기본정보' },
-  { value: 'menus', label: '메뉴 관리' },
-  { value: 'css', label: 'CSS' },
-]
 
 export default function BookEditPage() {
   const { bookId } = useParams<{ bookId: string }>()
@@ -87,6 +82,13 @@ export default function BookEditPage() {
     )
   }
 
+  const singleMode = (book.source_mode ?? 'menu') === 'single'
+  const tabs: { value: Tab; label: string }[] = [
+    { value: 'info', label: '기본정보' },
+    { value: 'menus', label: singleMode ? '파일 업로드' : '메뉴 관리' },
+    { value: 'css', label: 'CSS' },
+  ]
+
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -106,7 +108,7 @@ export default function BookEditPage() {
 
       <div className="mt-4 border-b border-gray-200">
         <nav className="-mb-px flex gap-4">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button
               key={t.value}
               onClick={() => setTab(t.value)}
@@ -143,7 +145,11 @@ export default function BookEditPage() {
           </div>
         </div>
         <div className={tab === 'menus' ? '' : 'hidden'}>
-          <MenuTreeEditor book={book} />
+          {singleMode ? (
+            <SingleContentTab book={book} onSaved={setBook} />
+          ) : (
+            <MenuTreeEditor book={book} />
+          )}
         </div>
         <div className={tab === 'css' ? '' : 'hidden'}>
           <CssEditorTab book={book} onSaved={setBook} />

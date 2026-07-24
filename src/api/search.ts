@@ -25,15 +25,21 @@ export async function searchBooks(q: string): Promise<Book[]> {
   const pattern = likePattern(q)
   const base = () =>
     supabase.from('books').select('*').eq('is_published', true).limit(LIMIT)
-  const [byTitle, byDesc] = await Promise.all([
+  const [byTitle, byDesc, bySingle] = await Promise.all([
     base().ilike('title', pattern),
     base().ilike('description', pattern),
+    // 단일 파일 도서의 본문 — single-file.sql 실행 전에는 컬럼이 없으므로 에러를 무시
+    base().ilike('single_content', pattern),
   ])
   if (byTitle.error) throw byTitle.error
   if (byDesc.error) throw byDesc.error
   const seen = new Set<string>()
   const merged: Book[] = []
-  for (const row of [...(byTitle.data as Book[]), ...(byDesc.data as Book[])]) {
+  for (const row of [
+    ...(byTitle.data as Book[]),
+    ...(byDesc.data as Book[]),
+    ...((bySingle.error ? [] : bySingle.data) as Book[]),
+  ]) {
     if (!seen.has(row.id)) {
       seen.add(row.id)
       merged.push(row)

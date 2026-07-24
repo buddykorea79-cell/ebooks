@@ -9,6 +9,53 @@ export function renderMarkdown(md: string): string {
   return marked.parse(md, { gfm: true, async: false })
 }
 
+/** 단일 마크다운 파일에서 자동 생성되는 목차 섹션 */
+export interface MarkdownSection {
+  id: string
+  title: string
+  /** H2 섹션이면 직전 H1 섹션의 id (트리 구조용) */
+  parentId: string | null
+  /** 제목 줄을 포함한 해당 구간의 마크다운 원문 */
+  content: string
+}
+
+/**
+ * 마크다운을 H1·H2 제목 기준으로 섹션 분할 (H3 이하는 상위 섹션에 포함).
+ * 코드 블록 안의 #은 lexer가 구분하므로 안전하다.
+ * 첫 제목 앞의 내용은 '들어가며' 섹션이 되고, 제목이 하나도 없으면 전체가 한 섹션이 된다.
+ */
+export function splitMarkdownSections(md: string): MarkdownSection[] {
+  const sections: MarkdownSection[] = []
+  let current: MarkdownSection | null = null
+  let lastH1Id: string | null = null
+  let preamble = ''
+
+  for (const token of marked.lexer(md, { gfm: true })) {
+    if (token.type === 'heading' && (token.depth === 1 || token.depth === 2)) {
+      const id = `s${sections.length}`
+      current = {
+        id,
+        title: token.text,
+        parentId: token.depth === 2 ? lastH1Id : null,
+        content: token.raw,
+      }
+      sections.push(current)
+      if (token.depth === 1) lastH1Id = id
+    } else if (current) {
+      current.content += token.raw
+    } else {
+      preamble += token.raw
+    }
+  }
+
+  if (preamble.trim()) {
+    // 제목이 하나도 없는 문서는 전체가 '본문' 한 섹션이 된다
+    const title = sections.length === 0 ? '본문' : '들어가며'
+    sections.unshift({ id: 'intro', title, parentId: null, content: preamble })
+  }
+  return sections
+}
+
 /** 마크다운 결과물에 입히는 기본 문서 스타일 (iframe 안에서만 적용) */
 export const MARKDOWN_BASE_CSS = `
 body { font-family: -apple-system, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;

@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import type { Book, BookType, ContentFormat } from '../types/database'
+import type { Book, BookType, ContentFormat, SourceMode } from '../types/database'
 
 export interface BookInput {
   category_id: string | null
@@ -7,6 +7,7 @@ export interface BookInput {
   title: string
   description?: string | null
   content_format?: ContentFormat
+  source_mode?: SourceMode
   is_published?: boolean
 }
 
@@ -19,12 +20,34 @@ export interface BookPatch {
   custom_css?: string | null
   css_apply_to_content?: boolean
   content_format?: ContentFormat
+  source_mode?: SourceMode
+  single_content?: string | null
   is_published?: boolean
 }
 
-/** content-format.sql 실행 전 DB에는 컬럼이 없어 저장이 통째로 실패하므로, 해당 필드만 빼고 재시도 */
-function isMissingContentFormatColumn(error: { message?: string } | null): boolean {
-  return typeof error?.message === 'string' && error.message.includes('content_format')
+/** 마이그레이션(content-format.sql, single-file.sql) 전 DB에는 없는 컬럼들 */
+const OPTIONAL_BOOK_COLUMNS = ['content_format', 'source_mode', 'single_content'] as const
+
+/**
+ * 컬럼 누락 에러면 신규 컬럼만 뺀 재시도용 행을 돌려준다.
+ * 재시도할 게 남지 않거나 무관한 에러면 null (원래 에러를 던질 것).
+ */
+function stripOptionalColumns(
+  row: BookInput | BookPatch,
+  error: { message?: string } | null,
+): Record<string, unknown> | null {
+  const msg = typeof error?.message === 'string' ? error.message : ''
+  if (!OPTIONAL_BOOK_COLUMNS.some((c) => msg.includes(c))) return null
+  const rest: Record<string, unknown> = { ...row }
+  let changed = false
+  for (const c of OPTIONAL_BOOK_COLUMNS) {
+    if (c in rest) {
+      delete rest[c]
+      changed = true
+    }
+  }
+  if (!changed || Object.keys(rest).length === 0) return null
+  return rest
 }
 
 /** 공개된 도서 목록 (홈). type을 주면 해당 유형만 필터 */
@@ -64,8 +87,8 @@ export async function fetchBook(id: string): Promise<Book | null> {
 export async function createBook(input: BookInput): Promise<Book> {
   const { data, error } = await supabase.from('books').insert(input).select().single()
   if (error) {
-    if (isMissingContentFormatColumn(error) && input.content_format !== undefined) {
-      const { content_format: _omit, ...rest } = input
+    const rest = stripOptionalColumns(input, error)
+    if (rest) {
       const retry = await supabase.from('books').insert(rest).select().single()
       if (retry.error) throw retry.error
       return retry.data as Book
@@ -83,8 +106,8 @@ export async function updateBook(id: string, patch: BookPatch): Promise<Book> {
     .select()
     .single()
   if (error) {
-    if (isMissingContentFormatColumn(error) && patch.content_format !== undefined) {
-      const { content_format: _omit, ...rest } = patch
+    const rest = stripOptionalColumns(patch, error)
+    if (rest) {
       const retry = await supabase.from('books').update(rest).eq('id', id).select().single()
       if (retry.error) throw retry.error
       return retry.data as Book

@@ -77,9 +77,16 @@ export default function DocsPage() {
         <h2 className="border-b border-gray-200 pb-2 text-xl font-bold">4. 콘텐츠 등록</h2>
         <ul className="mt-4 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-gray-700">
           <li>
-            기본정보 탭의 <strong>본문 형식</strong>에서 콘텐츠를 <strong>HTML</strong>로 쓸지{' '}
-            <strong>마크다운(MD)</strong>으로 쓸지 선택할 수 있습니다. 마크다운을 선택하면
-            편집기가 마크다운 문법을 강조하고, 뷰어가 자동으로 보기 좋은 문서로 변환해 줍니다.
+            기본정보 탭의 <strong>구성 방식</strong>에서 <strong>메뉴 구성</strong>(목차를 직접
+            만들고 메뉴별로 작성)과 <strong>단일 파일 업로드</strong>(완성된 HTML/MD 파일 하나)
+            중 선택할 수 있습니다. 단일 파일 모드에서 HTML 파일은 메뉴 없이 전체 화면으로
+            표시되고, 마크다운 파일은 제목(H1·H2) 기준으로 목차가 자동 생성됩니다.
+          </li>
+          <li>
+            메뉴 구성 모드에서는 기본정보 탭의 <strong>본문 형식</strong>에서 콘텐츠를{' '}
+            <strong>HTML</strong>로 쓸지 <strong>마크다운(MD)</strong>으로 쓸지 선택할 수
+            있습니다. 마크다운을 선택하면 편집기가 마크다운 문법을 강조하고, 뷰어가 자동으로
+            보기 좋은 문서로 변환해 줍니다.
           </li>
           <li>
             메뉴 관리 탭에서 <strong>메뉴 이름을 클릭</strong>하면 아래에 편집기가 열립니다.

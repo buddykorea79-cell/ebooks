@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import type { Book, BookType, Category, ContentFormat } from '../types/database'
+import type { Book, BookType, Category, ContentFormat, SourceMode } from '../types/database'
 import { useBookTypes } from '../api/bookTypes'
 import ErrorAlert from './ErrorAlert'
 
@@ -8,7 +8,9 @@ export interface BookFormValues {
   category_id: string | null
   type: BookType
   description: string | null
-  content_format: ContentFormat
+  source_mode: SourceMode
+  /** 단일 파일 모드에서는 업로드한 파일 확장자가 형식을 결정하므로 보내지 않는다 */
+  content_format?: ContentFormat
   is_published: boolean
 }
 
@@ -38,6 +40,7 @@ export default function BookForm({
   const [contentFormat, setContentFormat] = useState<ContentFormat>(
     initial?.content_format ?? 'html',
   )
+  const [sourceMode, setSourceMode] = useState<SourceMode>(initial?.source_mode ?? 'menu')
 
   // 새 도서 모드: 유형 목록이 로드되면 첫 번째 유형을 기본값으로
   useEffect(() => {
@@ -66,7 +69,9 @@ export default function BookForm({
         category_id: categoryId || null,
         type,
         description: description.trim() || null,
-        content_format: contentFormat,
+        source_mode: sourceMode,
+        // 단일 파일 모드의 형식은 업로드 시 결정되므로 여기서 덮어쓰지 않는다
+        ...(sourceMode === 'menu' ? { content_format: contentFormat } : {}),
         is_published: isPublished,
       })
     } catch (err) {
@@ -131,32 +136,64 @@ export default function BookForm({
       </div>
 
       <fieldset>
-        <legend className="block text-sm font-medium text-gray-700">본문 형식</legend>
-        <div className="mt-1 flex gap-4">
+        <legend className="block text-sm font-medium text-gray-700">구성 방식</legend>
+        <div className="mt-1 flex flex-col gap-1.5 sm:flex-row sm:gap-4">
           {(
             [
-              { value: 'html', label: 'HTML' },
-              { value: 'markdown', label: '마크다운 (MD)' },
-            ] as { value: ContentFormat; label: string }[]
-          ).map((f) => (
-            <label key={f.value} className="flex items-center gap-1.5 text-sm text-gray-700">
+              { value: 'menu', label: '메뉴 구성', hint: '목차를 만들고 메뉴별로 작성' },
+              { value: 'single', label: '단일 파일 업로드', hint: '완성된 HTML/MD 파일 하나' },
+            ] as { value: SourceMode; label: string; hint: string }[]
+          ).map((m) => (
+            <label key={m.value} className="flex items-center gap-1.5 text-sm text-gray-700">
               <input
                 type="radio"
-                name="content-format"
-                value={f.value}
-                checked={contentFormat === f.value}
-                onChange={() => setContentFormat(f.value)}
+                name="source-mode"
+                value={m.value}
+                checked={sourceMode === m.value}
+                onChange={() => setSourceMode(m.value)}
                 className="h-4 w-4"
               />
-              {f.label}
+              {m.label}
+              <span className="text-xs text-gray-400">({m.hint})</span>
             </label>
           ))}
         </div>
-        <p className="mt-1 text-xs text-gray-400">
-          메뉴 콘텐츠를 작성·표시할 형식입니다. 이미 작성된 콘텐츠는 변환되지 않으니 도중에
-          바꾸면 기존 메뉴가 이상하게 보일 수 있습니다.
-        </p>
       </fieldset>
+
+      {sourceMode === 'menu' ? (
+        <fieldset>
+          <legend className="block text-sm font-medium text-gray-700">본문 형식</legend>
+          <div className="mt-1 flex gap-4">
+            {(
+              [
+                { value: 'html', label: 'HTML' },
+                { value: 'markdown', label: '마크다운 (MD)' },
+              ] as { value: ContentFormat; label: string }[]
+            ).map((f) => (
+              <label key={f.value} className="flex items-center gap-1.5 text-sm text-gray-700">
+                <input
+                  type="radio"
+                  name="content-format"
+                  value={f.value}
+                  checked={contentFormat === f.value}
+                  onChange={() => setContentFormat(f.value)}
+                  className="h-4 w-4"
+                />
+                {f.label}
+              </label>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-gray-400">
+            메뉴 콘텐츠를 작성·표시할 형식입니다. 이미 작성된 콘텐츠는 변환되지 않으니 도중에
+            바꾸면 기존 메뉴가 이상하게 보일 수 있습니다.
+          </p>
+        </fieldset>
+      ) : (
+        <p className="text-xs text-gray-400">
+          본문 형식은 업로드한 파일 확장자(.html/.md)에 따라 자동으로 결정됩니다. HTML은 메뉴
+          없이 전체 화면으로, 마크다운은 제목(H1·H2) 기준으로 목차가 자동 생성됩니다.
+        </p>
+      )}
 
       <div>
         <label htmlFor="book-description" className="block text-sm font-medium text-gray-700">
