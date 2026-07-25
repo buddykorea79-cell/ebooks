@@ -45,7 +45,8 @@ VITE_SUPABASE_ANON_KEY=<anon key>
 - **내 서재**(`/my`): 도서 생성/삭제, 공개 여부 설정
 - **도서 편집**(`/book/:id/edit`): 탭 구조
   - 기본 정보: 제목/분류/유형/설명/**구성 방식(메뉴 구성·단일 파일)**/**본문 형식(HTML·마크다운)**/공개,
-    표지 이미지 업로드(Storage `covers` 버킷)
+    표지 이미지(Storage `covers` 버킷) — **파일 업로드** 또는 **SVG 코드 직접 붙여넣기**
+    (붙여넣는 즉시 미리보기, 저장 시 `.svg`로 업로드)
   - 메뉴 관리(메뉴 구성 모드): 트리 편집(추가/이름변경/삭제/이동/들여쓰기) + CodeMirror 편집·미리보기
     (본문 형식에 따라 HTML/마크다운 문법 강조 전환)
   - 파일 업로드(단일 파일 모드): 완성된 .html/.md 파일 하나를 업로드 → `books.single_content`에 저장,
@@ -148,7 +149,7 @@ src/
 │   ├── books.ts          도서 CRUD
 │   ├── bookTypes.ts      유형 CRUD + useBookTypes 훅(모듈 캐시, 없으면 기본 3종 fail-soft)
 │   ├── categories.ts     분류 CRUD
-│   ├── covers.ts         표지 업로드 (Storage)
+│   ├── covers.ts         표지 업로드 (Storage) + SVG 코드 정제(sanitizeSvg)
 │   ├── menus.ts          메뉴 CRUD
 │   ├── profiles.ts       프로필/닉네임 조회
 │   ├── recommendations.ts 추천 추가/삭제/집계
@@ -187,6 +188,9 @@ supabase/                 SQL (실행 순서: schema → profiles → storage �
   앱이 죽지 않고 기본값으로 동작하도록 호출부에서 예외를 흡수
 - **코드 분할**: 편집/뷰어/Docs/관리자 페이지는 `lazy()` 지연 로딩, CodeMirror는 별도 청크
 - **뷰어 보안**: 사용자 HTML은 iframe `sandbox="allow-scripts"`로 격리 렌더링
+- **표지 SVG 보안**: 붙여넣은 SVG는 `DOMParser`로 파싱해 `<script>`·`<foreignObject>`,
+  `on*` 이벤트 핸들러, `javascript:`·외부 리소스 참조를 제거한 뒤 업로드.
+  표지는 항상 `<img>`로만 렌더링하지만, Storage 공개 URL을 직접 열었을 때도 안전하도록 정제한다
 
 ---
 
@@ -219,3 +223,4 @@ supabase/                 SQL (실행 순서: schema → profiles → storage �
 - 단일 파일 모드 (`single-file.sql` — 완성된 HTML은 메뉴 없는 전체 화면,
   마크다운은 H1·H2 기준 목차 자동 생성)
 - 홈 목록 개편 (`home-layout.sql` — 분류별 그룹 제거, 관리자가 최신순/추천순/2단 구성 선택)
+- 표지 SVG 코드 입력 (파일 대신 SVG 코드를 붙여넣어 표지 지정, DB 변경 없음)
