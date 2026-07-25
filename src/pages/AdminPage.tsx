@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { BookTypeRow, Category } from '../types/database'
+import type { BookTypeRow, Category, Profile } from '../types/database'
 import { HOME_LAYOUT_LABELS } from '../types/database'
+import { fetchProfiles, setUserAdmin } from '../api/profiles'
 import { useAuth } from '../contexts/AuthContext'
 import {
   createCategory,
@@ -31,6 +32,9 @@ function errMsg(err: unknown): string {
   }
   if (msg.includes('row-level security')) {
     return '권한이 없습니다. 관리자 계정인지, admin.sql을 실행했는지 확인하세요.'
+  }
+  if (msg.includes('set_user_admin') || msg.includes('Could not find the function')) {
+    return '회원 권한 변경 기능을 찾을 수 없습니다. supabase/admin-members.sql을 SQL Editor에서 실행하세요.'
   }
   return msg
 }
@@ -346,6 +350,129 @@ function TypeManager() {
 }
 
 // ---------------------------------------------------------------
+// 회원 관리 (관리자 지정/해제)
+// ---------------------------------------------------------------
+
+function MemberManager({ myId }: { myId: string | null }) {
+  const [members, setMembers] = useState<Profile[] | null>(null)
+  const [query, setQuery] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      setMembers(await fetchProfiles())
+    } catch (err) {
+      setError(`회원 목록을 불러오지 못했습니다: ${errMsg(err)}`)
+    }
+  }, [])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  async function handleToggle(member: Profile) {
+    const makeAdmin = member.is_admin !== true
+    const message = makeAdmin
+      ? `'${member.nickname}' 님에게 관리자 권한을 부여할까요?\n분류·유형·회원 권한을 모두 변경할 수 있게 됩니다.`
+      : `'${member.nickname}' 님의 관리자 권한을 해제할까요?`
+    if (!window.confirm(message)) return
+
+    setBusyId(member.id)
+    setError(null)
+    try {
+      await setUserAdmin(member.id, makeAdmin)
+      await load()
+    } catch (err) {
+      setError(errMsg(err))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const keyword = query.trim().toLowerCase()
+  const filtered = (members ?? []).filter((m) => m.nickname.toLowerCase().includes(keyword))
+  const adminCount = (members ?? []).filter((m) => m.is_admin).length
+
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white p-4">
+      <h2 className="text-lg font-semibold">회원 관리</h2>
+      <p className="mt-1 text-xs text-gray-500">
+        최초로 가입한 회원이 자동으로 관리자가 됩니다. 여기서 다른 회원에게 관리자 권한을
+        부여하거나 해제할 수 있습니다. (본인 권한은 해제할 수 없습니다)
+      </p>
+
+      {error && (
+        <div className="mt-3">
+          <ErrorAlert message={error} />
+        </div>
+      )}
+
+      {members === null && !error && <p className="mt-3 text-sm text-gray-500">불러오는 중…</p>}
+
+      {members !== null && (
+        <>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="닉네임 검색"
+              className={`${inputClass} min-w-0 flex-1`}
+            />
+            <span className="text-xs text-gray-400">
+              전체 {members.length}명 · 관리자 {adminCount}명
+            </span>
+          </div>
+
+          {filtered.length === 0 ? (
+            <p className="mt-3 text-sm text-gray-500">
+              {members.length === 0 ? '가입한 회원이 없습니다.' : '검색 결과가 없습니다.'}
+            </p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {filtered.map((member) => {
+                const isMe = member.id === myId
+                const isAdminMember = member.is_admin === true
+                return (
+                  <li key={member.id} className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-sm font-medium">{member.nickname}</span>
+                      {isMe && <span className="ml-1 text-xs text-gray-400">(나)</span>}
+                      {isAdminMember && (
+                        <span className="ml-2 inline-block rounded bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-700">
+                          관리자
+                        </span>
+                      )}
+                      <span className="block text-xs text-gray-400">
+                        가입 {member.created_at.slice(0, 10)}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleToggle(member)}
+                      disabled={busyId !== null || (isAdminMember && isMe)}
+                      title={
+                        isAdminMember && isMe ? '자기 자신의 권한은 해제할 수 없습니다' : undefined
+                      }
+                      className={`${isAdminMember ? dangerBtn : smallBtn} shrink-0 disabled:opacity-40`}
+                    >
+                      {busyId === member.id
+                        ? '처리 중…'
+                        : isAdminMember
+                          ? '관리자 해제'
+                          : '관리자 지정'}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </>
+      )}
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------
 // 기능 설정 (추천 기능 켜기/끄기 + 홈 목록 구성)
 // ---------------------------------------------------------------
 
@@ -481,7 +608,7 @@ function FeatureSettings() {
 // ---------------------------------------------------------------
 
 export default function AdminPage() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, user } = useAuth()
 
   if (isAdmin === null) {
     return <p className="mt-6 text-gray-500">권한 확인 중…</p>
@@ -502,6 +629,7 @@ export default function AdminPage() {
       <div className="mt-4 space-y-4">
         <CategoryManager />
         <TypeManager />
+        <MemberManager myId={user?.id ?? null} />
         <FeatureSettings />
       </div>
     </div>

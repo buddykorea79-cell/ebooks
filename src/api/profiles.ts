@@ -1,6 +1,25 @@
 import { supabase } from '../lib/supabase'
 import type { Profile } from '../types/database'
 
+/** 전체 회원 목록 (가입순). 닉네임·관리자 여부는 공개 정보 */
+export async function fetchProfiles(): Promise<Profile[]> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return data as Profile[]
+}
+
+/** 관리자 지정/해제 — 권한 검사는 DB 함수(set_user_admin) 안에서 이뤄진다 */
+export async function setUserAdmin(userId: string, makeAdmin: boolean): Promise<void> {
+  const { error } = await supabase.rpc('set_user_admin', {
+    target_id: userId,
+    make_admin: makeAdmin,
+  })
+  if (error) throw error
+}
+
 export async function fetchProfile(userId: string): Promise<Profile | null> {
   const { data, error } = await supabase
     .from('profiles')

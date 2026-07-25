@@ -65,6 +65,8 @@ VITE_SUPABASE_ANON_KEY=<anon key>
 - **관리자**(`/admin`, 관리자 전용):
   - 분류(categories) 추가/이름 변경/순서 이동/삭제
   - 유형(book_types) 추가/이름 변경/순서 이동/삭제
+  - **회원 관리**: 가입 회원 목록(닉네임 검색) + 관리자 지정/해제. 최초 가입자는 자동 관리자,
+    본인 권한은 해제 불가(잠김 방지)
   - 회원 추천 기능 켜기/끄기(`site_settings.recommend_enabled`)
   - 홈 도서 목록 구성 선택(`site_settings.home_layout`): 최신순 / 추천순 / 추천+최신 2단
     (2단일 때 추천 섹션 개수는 `home_featured_count`)
@@ -92,9 +94,14 @@ VITE_SUPABASE_ANON_KEY=<anon key>
 | 5 | `content-format.sql` | `books.content_format` 컬럼 추가 — 도서별 본문 형식('html' \| 'markdown') |
 | 6 | `single-file.sql` | `books.source_mode`('menu' \| 'single')와 `books.single_content` 추가 — 단일 파일 업로드 모드 |
 | 7 | `home-layout.sql` | `site_settings.home_layout`('latest' \| 'recommended' \| 'both')과 `home_featured_count` 추가 — 홈 목록 구성 |
+| 8 | `admin-members.sql` | 최초 가입자 자동 관리자(가입 트리거 교체), 관리자 지정/해제 함수(`set_user_admin`), **권한 상승 차단**(profiles 컬럼 단위 UPDATE 권한) |
 
-> `admin.sql`에는 최초 관리자 지정 구문이 포함되어 있습니다.
-> 이메일을 본인 계정으로 바꿔 실행하세요:
+> **관리자 계정은 어떻게 정해지나요?**
+> `admin-members.sql`을 실행하면 **최초로 가입한 회원이 자동으로 관리자**가 되고,
+> 이후에는 관리자가 `/admin` → 회원 관리에서 다른 회원에게 권한을 줄 수 있습니다.
+> 이미 운영 중이라 관리자가 한 명도 없다면 같은 스크립트가 가장 먼저 가입한 회원을
+> 관리자로 지정합니다(이미 관리자가 있으면 건드리지 않음).
+> 특정 계정을 직접 지정하려면 SQL Editor에서 실행하세요:
 > ```sql
 > update public.profiles set is_admin = true
 > where id = (select id from auth.users where email = '관리자이메일');
@@ -126,11 +133,16 @@ book_recommendations  추천 (book_id, user_id 복합 PK)
 | book_types | 누구나 | 관리자만 |
 | books | 공개(is_published) 또는 소유자 | 소유자만 |
 | book_menus | 소속 도서 규칙을 따름 | 소속 도서 소유자만 |
-| profiles | 누구나 (닉네임 공개) | 본인만 수정 (생성은 가입 트리거) |
+| profiles | 누구나 (닉네임 공개) | 본인의 **nickname 컬럼만** 수정 (생성은 가입 트리거). `is_admin` 변경은 관리자만, `set_user_admin()` 함수를 통해서만 |
 | site_settings | 누구나 | 관리자만 |
 | book_recommendations | 누구나 (추천 수 표시) | 로그인 회원이 본인 것만 추가/삭제 |
 
 `is_admin()`은 `security definer` 함수라 RLS 정책 안에서 재귀 없이 profiles를 조회합니다.
+
+> ⚠️ RLS 정책은 **행 단위**라 컬럼별 제한을 할 수 없습니다. `is_admin`이 profiles 행에 있는 이상
+> "본인 행 수정 허용" 정책만으로는 회원이 스스로 관리자가 되는 것을 막을 수 없어,
+> `admin-members.sql`에서 컬럼 단위 `GRANT UPDATE (nickname)`으로 차단하고
+> 권한 변경은 `set_user_admin()` security definer 함수로만 가능하게 했습니다.
 
 ### 3-4. Supabase 대시보드 설정
 
@@ -224,3 +236,5 @@ supabase/                 SQL (실행 순서: schema → profiles → storage �
   마크다운은 H1·H2 기준 목차 자동 생성)
 - 홈 목록 개편 (`home-layout.sql` — 분류별 그룹 제거, 관리자가 최신순/추천순/2단 구성 선택)
 - 표지 SVG 코드 입력 (파일 대신 SVG 코드를 붙여넣어 표지 지정, DB 변경 없음)
+- 회원 관리 (`admin-members.sql` — 최초 가입자 자동 관리자, 관리자 지정/해제 UI,
+  profiles 권한 상승 취약점 차단)
