@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { BookTypeRow, Category } from '../types/database'
+import { HOME_LAYOUT_LABELS } from '../types/database'
 import { useAuth } from '../contexts/AuthContext'
 import {
   createCategory,
@@ -14,7 +15,8 @@ import {
   invalidateBookTypesCache,
   updateBookType,
 } from '../api/bookTypes'
-import { fetchSiteSettings, updateRecommendEnabled } from '../api/settings'
+import { fetchSiteSettings, updateSiteSettings, type SiteSettingsPatch } from '../api/settings'
+import type { HomeLayout, SiteSettings } from '../types/database'
 import ErrorAlert from '../components/ErrorAlert'
 
 const inputClass =
@@ -344,17 +346,26 @@ function TypeManager() {
 }
 
 // ---------------------------------------------------------------
-// 기능 설정 (추천 기능 켜기/끄기)
+// 기능 설정 (추천 기능 켜기/끄기 + 홈 목록 구성)
 // ---------------------------------------------------------------
 
+const LAYOUT_OPTIONS: { value: HomeLayout; hint: string }[] = [
+  { value: 'latest', hint: '새로 등록된 도서가 먼저 보입니다. 신간 위주로 운영할 때.' },
+  { value: 'recommended', hint: '추천을 많이 받은 도서가 먼저 보입니다. 인기 도서 위주로 운영할 때.' },
+  {
+    value: 'both',
+    hint: "'추천 도서'를 위에, '최신 도서'를 아래에 나눠 보여줍니다. 둘 다 보여주고 싶을 때.",
+  },
+]
+
 function FeatureSettings() {
-  const [enabled, setEnabled] = useState<boolean | null>(null)
+  const [settings, setSettings] = useState<SiteSettings | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     fetchSiteSettings()
-      .then((s) => setEnabled(s?.recommend_enabled ?? false))
+      .then((s) => setSettings(s))
       .catch((err) =>
         setError(
           `설정을 불러오지 못했습니다: ${errMsg(err)}\n(site_settings 테이블이 없다면 supabase/admin.sql을 먼저 실행하세요)`,
@@ -362,20 +373,30 @@ function FeatureSettings() {
       )
   }, [])
 
-  async function handleToggle(next: boolean) {
+  /** 낙관적 반영 후 실패하면 되돌린다 */
+  async function save(patch: SiteSettingsPatch) {
+    if (!settings) return
+    const prev = settings
+    setSettings({ ...settings, ...patch })
     setError(null)
     setBusy(true)
-    const prev = enabled
-    setEnabled(next)
     try {
-      await updateRecommendEnabled(next)
+      await updateSiteSettings(patch)
     } catch (err) {
-      setEnabled(prev)
-      setError(errMsg(err))
+      setSettings(prev)
+      const msg = errMsg(err)
+      setError(
+        msg.includes('home_layout') || msg.includes('home_featured_count')
+          ? '저장에 실패했습니다. supabase/home-layout.sql을 SQL Editor에서 실행했는지 확인하세요.'
+          : msg,
+      )
     } finally {
       setBusy(false)
     }
   }
+
+  const layout = settings?.home_layout ?? 'latest'
+  const featuredCount = settings?.home_featured_count ?? 8
 
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4">
@@ -385,18 +406,73 @@ function FeatureSettings() {
           <ErrorAlert message={error} />
         </div>
       )}
-      {enabled === null && !error && <p className="mt-3 text-sm text-gray-500">불러오는 중…</p>}
-      {enabled !== null && (
-        <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
-          <input
-            type="checkbox"
-            checked={enabled}
-            disabled={busy}
-            onChange={(e) => handleToggle(e.target.checked)}
-            className="h-4 w-4"
-          />
-          회원 추천 기능 사용 (홈 도서 카드에 👍 추천 버튼과 추천 수가 표시됩니다)
-        </label>
+      {settings === null && !error && <p className="mt-3 text-sm text-gray-500">불러오는 중…</p>}
+
+      {settings !== null && (
+        <>
+          <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={settings.recommend_enabled}
+              disabled={busy}
+              onChange={(e) => save({ recommend_enabled: e.target.checked })}
+              className="h-4 w-4"
+            />
+            회원 추천 기능 사용 (홈 도서 카드에 👍 추천 버튼과 추천 수가 표시됩니다)
+          </label>
+
+          <div className="mt-5 border-t border-gray-100 pt-4">
+            <h3 className="text-sm font-medium text-gray-700">홈 도서 목록 구성</h3>
+            <p className="mt-1 text-xs text-gray-500">
+              홈의 '전체' 탭에서 공개 도서를 어떤 순서로 보여줄지 선택합니다. 분류 탭을 고르면
+              해당 분류의 도서만 같은 순서로 표시됩니다.
+            </p>
+            <div className="mt-3 space-y-2">
+              {LAYOUT_OPTIONS.map((opt) => (
+                <label key={opt.value} className="flex items-start gap-2 text-sm text-gray-700">
+                  <input
+                    type="radio"
+                    name="home-layout"
+                    value={opt.value}
+                    checked={layout === opt.value}
+                    disabled={busy}
+                    onChange={() => save({ home_layout: opt.value })}
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                  />
+                  <span>
+                    <span className="font-medium">{HOME_LAYOUT_LABELS[opt.value]}</span>
+                    <span className="block text-xs text-gray-400">{opt.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+
+            {layout === 'both' && (
+              <label className="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-700">
+                추천 도서 섹션에 표시할 개수
+                <select
+                  value={featuredCount}
+                  disabled={busy}
+                  onChange={(e) => save({ home_featured_count: Number(e.target.value) })}
+                  className={inputClass}
+                >
+                  {[4, 8, 12, 16].map((n) => (
+                    <option key={n} value={n}>
+                      {n}개
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            {layout !== 'latest' && !settings.recommend_enabled && (
+              <p className="mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                추천 기능이 꺼져 있어 회원이 새로 추천할 수 없습니다. 이미 쌓인 추천 수로만
+                정렬되니, 위의 '회원 추천 기능 사용'도 함께 켜는 것이 좋습니다.
+              </p>
+            )}
+          </div>
+        </>
       )}
     </section>
   )

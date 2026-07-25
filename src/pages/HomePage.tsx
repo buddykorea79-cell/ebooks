@@ -1,6 +1,6 @@
 import { useEffect, useState, type MouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import type { Book, Category } from '../types/database'
+import type { Book, Category, HomeLayout } from '../types/database'
 import { fetchPublishedBooks } from '../api/books'
 import { fetchCategories } from '../api/categories'
 import { fetchNicknames } from '../api/profiles'
@@ -17,12 +17,6 @@ import TypeBadge from '../components/TypeBadge'
 
 const UNCATEGORIZED = '__none__'
 
-interface CategoryGroup {
-  key: string
-  name: string
-  books: Book[]
-}
-
 export default function HomePage() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -32,8 +26,11 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<string>('all') // 'all' | category id | UNCATEGORIZED
 
-  // 추천 기능 (site_settings.recommend_enabled가 켜져 있을 때만 노출)
+  // 관리자 설정 (없으면 기본값: 최신순, 추천 기능 꺼짐)
+  const [layout, setLayout] = useState<HomeLayout>('latest')
+  const [featuredCount, setFeaturedCount] = useState(8)
   const [recommendEnabled, setRecommendEnabled] = useState(false)
+
   const [recCounts, setRecCounts] = useState<Record<string, number>>({})
   const [myRecs, setMyRecs] = useState<Set<string>>(new Set())
   const [recBusy, setRecBusy] = useState<string | null>(null)
@@ -51,12 +48,17 @@ export default function HomePage() {
         }
         try {
           const settings = await fetchSiteSettings()
-          if (settings?.recommend_enabled) {
-            setRecommendEnabled(true)
-            setRecCounts(await fetchRecommendCounts(b.map((x) => x.id)))
-          }
+          setRecommendEnabled(settings?.recommend_enabled ?? false)
+          setLayout(settings?.home_layout ?? 'latest')
+          setFeaturedCount(settings?.home_featured_count ?? 8)
         } catch {
-          // admin.sql 실행 전(site_settings 없음)에는 추천 기능을 숨긴다
+          // admin.sql 실행 전(site_settings 없음)에는 기본값으로 동작
+        }
+        try {
+          // 추천 정렬에 필요하므로 추천 버튼 노출 여부와 무관하게 조회
+          setRecCounts(await fetchRecommendCounts(b.map((x) => x.id)))
+        } catch {
+          // book_recommendations 테이블이 없으면 추천 수는 0으로 취급
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
@@ -123,19 +125,42 @@ export default function HomePage() {
     ...(hasUncategorized ? [{ value: UNCATEGORIZED, label: '미분류' }] : []),
   ]
 
-  const groups: CategoryGroup[] = []
-  for (const cat of categories) {
-    if (filter !== 'all' && filter !== cat.id) continue
-    const inCat = all.filter((b) => b.category_id === cat.id)
-    if (inCat.length > 0) groups.push({ key: cat.id, name: cat.name, books: inCat })
-  }
-  if (filter === 'all' || filter === UNCATEGORIZED) {
-    const uncategorized = all.filter(
-      (b) => !b.category_id || !categories.some((c) => c.id === b.category_id),
-    )
-    if (uncategorized.length > 0)
-      groups.push({ key: UNCATEGORIZED, name: '미분류', books: uncategorized })
-  }
+  const visible =
+    filter === 'all'
+      ? all
+      : filter === UNCATEGORIZED
+        ? all.filter((b) => !b.category_id || !categories.some((c) => c.id === b.category_id))
+        : all.filter((b) => b.category_id === filter)
+
+  const byLatest = (a: Book, b: Book) => (a.created_at < b.created_at ? 1 : -1)
+  const byRecommended = (a: Book, b: Book) =>
+    (recCounts[b.id] ?? 0) - (recCounts[a.id] ?? 0) || byLatest(a, b)
+
+  // 'both'는 '전체' 탭에서만 2단으로 나눈다 (분류를 고르면 목록 하나)
+  const splitSections = layout === 'both' && filter === 'all'
+  const featured = splitSections
+    ? [...visible].filter((b) => (recCounts[b.id] ?? 0) > 0).sort(byRecommended).slice(0, featuredCount)
+    : []
+  const featuredIds = new Set(featured.map((b) => b.id))
+
+  const sections: { key: string; title: string | null; books: Book[] }[] = splitSections
+    ? [
+        ...(featured.length > 0 ? [{ key: 'featured', title: '추천 도서', books: featured }] : []),
+        {
+          key: 'latest',
+          title: featured.length > 0 ? '최신 도서' : null,
+          books: [...visible].sort(byLatest).filter((b) => !featuredIds.has(b.id)),
+        },
+      ]
+    : [
+        {
+          key: 'list',
+          title: null,
+          books: [...visible].sort(layout === 'recommended' ? byRecommended : byLatest),
+        },
+      ]
+
+  const sortLabel = layout === 'recommended' ? '추천순' : '최신순'
 
   return (
     <div>
@@ -149,7 +174,12 @@ export default function HomePage() {
         </h1>
       </section>
 
-      <h2 className="text-2xl font-bold">공개 도서</h2>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-2xl font-bold">공개 도서</h2>
+        {books !== null && visible.length > 0 && !splitSections && (
+          <span className="text-sm text-gray-400">{sortLabel}</span>
+        )}
+      </div>
 
       {/* 분류 필터 탭 */}
       <div className="mt-4 flex flex-wrap gap-1 rounded-lg bg-gray-100 p-1 text-sm" role="tablist">
@@ -176,7 +206,7 @@ export default function HomePage() {
 
       {books === null && !error && <p className="mt-6 text-gray-500">불러오는 중…</p>}
 
-      {books !== null && groups.length === 0 && (
+      {books !== null && visible.length === 0 && (
         <p className="mt-6 text-gray-500">
           {filter === 'all'
             ? '아직 공개된 도서가 없습니다.'
@@ -184,69 +214,77 @@ export default function HomePage() {
         </p>
       )}
 
-      {groups.map((group) => (
-        <section key={group.key} className="mt-8">
-          <h2 className="text-lg font-semibold text-gray-800">{group.name}</h2>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
-            {group.books.map((book) => (
-              <Link
-                key={book.id}
-                to={`/book/${book.id}`}
-                className="flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white transition hover:border-blue-300 hover:shadow-sm"
-              >
-                {/* 표지: 세로(3:4) 비율 고정 */}
-                {book.cover_url ? (
-                  <img
-                    src={book.cover_url}
-                    alt={`${book.title} 표지`}
-                    loading="lazy"
-                    className="aspect-[3/4] w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex aspect-[3/4] w-full items-center justify-center bg-gray-100 text-4xl">
-                    📕
-                  </div>
-                )}
-                <div className="flex flex-1 flex-col p-3">
-                  <h3 className="text-sm font-semibold break-keep sm:text-base">{book.title}</h3>
-                  {nicknames[book.owner_id] && (
-                    <p className="mt-0.5 truncate text-xs text-gray-400">
-                      {nicknames[book.owner_id]}
-                    </p>
+      {sections.map((section) =>
+        section.books.length === 0 ? null : (
+          <section key={section.key} className="mt-8 first:mt-6">
+            {section.title && (
+              <h3 className="text-lg font-semibold text-gray-800">{section.title}</h3>
+            )}
+            <div
+              className={`grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 ${
+                section.title ? 'mt-3' : ''
+              }`}
+            >
+              {section.books.map((book) => (
+                <Link
+                  key={book.id}
+                  to={`/book/${book.id}`}
+                  className="flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white transition hover:border-blue-300 hover:shadow-sm"
+                >
+                  {/* 표지: 세로(3:4) 비율 고정 */}
+                  {book.cover_url ? (
+                    <img
+                      src={book.cover_url}
+                      alt={`${book.title} 표지`}
+                      loading="lazy"
+                      className="aspect-[3/4] w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex aspect-[3/4] w-full items-center justify-center bg-gray-100 text-4xl">
+                      📕
+                    </div>
                   )}
-                  {book.description && (
-                    <p className="mt-1 line-clamp-2 text-xs text-gray-500">{book.description}</p>
-                  )}
-                  {/* 유형 배지(+추천)는 카드 최하단 고정 */}
-                  <div className="mt-auto flex items-center justify-between pt-2">
-                    <TypeBadge type={book.type} />
-                    {recommendEnabled && (
-                      <button
-                        onClick={(e) => handleRecommend(e, book)}
-                        disabled={recBusy === book.id}
-                        title={
-                          user
-                            ? myRecs.has(book.id)
-                              ? '추천 취소'
-                              : '추천'
-                            : '로그인 후 추천할 수 있습니다'
-                        }
-                        className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition disabled:opacity-50 ${
-                          myRecs.has(book.id)
-                            ? 'border-blue-300 bg-blue-50 text-blue-600'
-                            : 'border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600'
-                        }`}
-                      >
-                        👍 {recCounts[book.id] ?? 0}
-                      </button>
+                  <div className="flex flex-1 flex-col p-3">
+                    <h3 className="text-sm font-semibold break-keep sm:text-base">{book.title}</h3>
+                    {nicknames[book.owner_id] && (
+                      <p className="mt-0.5 truncate text-xs text-gray-400">
+                        {nicknames[book.owner_id]}
+                      </p>
                     )}
+                    {book.description && (
+                      <p className="mt-1 line-clamp-2 text-xs text-gray-500">{book.description}</p>
+                    )}
+                    {/* 유형 배지(+추천)는 카드 최하단 고정 */}
+                    <div className="mt-auto flex items-center justify-between pt-2">
+                      <TypeBadge type={book.type} />
+                      {recommendEnabled && (
+                        <button
+                          onClick={(e) => handleRecommend(e, book)}
+                          disabled={recBusy === book.id}
+                          title={
+                            user
+                              ? myRecs.has(book.id)
+                                ? '추천 취소'
+                                : '추천'
+                              : '로그인 후 추천할 수 있습니다'
+                          }
+                          className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition disabled:opacity-50 ${
+                            myRecs.has(book.id)
+                              ? 'border-blue-300 bg-blue-50 text-blue-600'
+                              : 'border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600'
+                          }`}
+                        >
+                          👍 {recCounts[book.id] ?? 0}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      ))}
+                </Link>
+              ))}
+            </div>
+          </section>
+        ),
+      )}
     </div>
   )
 }

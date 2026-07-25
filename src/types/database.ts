@@ -28,9 +28,26 @@ export interface Profile {
   created_at: string
 }
 
+/**
+ * 홈 도서 목록 구성 방식
+ * - latest: 최신순 한 목록
+ * - recommended: 추천순 한 목록 (동점이면 최신순)
+ * - both: '추천 도서' 섹션 + '최신 도서' 섹션 2단
+ */
+export type HomeLayout = 'latest' | 'recommended' | 'both'
+
+export const HOME_LAYOUT_LABELS: Record<HomeLayout, string> = {
+  latest: '최신순',
+  recommended: '추천순',
+  both: '추천 + 최신 2단',
+}
+
 export interface SiteSettings {
   id: number
   recommend_enabled: boolean
+  /** home-layout.sql 실행 전에는 컬럼이 없어 undefined → 'latest'로 간주 */
+  home_layout?: HomeLayout
+  home_featured_count?: number
 }
 
 /** 메뉴 콘텐츠(html_content)를 어떤 형식으로 작성·렌더링할지 */

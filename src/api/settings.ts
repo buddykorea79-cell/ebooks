@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import type { SiteSettings } from '../types/database'
+import type { HomeLayout, SiteSettings } from '../types/database'
 
 /** site_settings 테이블이 없거나 행이 없으면 null (fail-soft는 호출부에서) */
 export async function fetchSiteSettings(): Promise<SiteSettings | null> {
@@ -8,10 +8,13 @@ export async function fetchSiteSettings(): Promise<SiteSettings | null> {
   return data as SiteSettings | null
 }
 
-export async function updateRecommendEnabled(enabled: boolean): Promise<void> {
-  const { error } = await supabase
-    .from('site_settings')
-    .update({ recommend_enabled: enabled })
-    .eq('id', 1)
+export interface SiteSettingsPatch {
+  recommend_enabled?: boolean
+  home_layout?: HomeLayout
+  home_featured_count?: number
+}
+
+export async function updateSiteSettings(patch: SiteSettingsPatch): Promise<void> {
+  const { error } = await supabase.from('site_settings').update(patch).eq('id', 1)
   if (error) throw error
 }

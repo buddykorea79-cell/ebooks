@@ -57,12 +57,16 @@ VITE_SUPABASE_ANON_KEY=<anon key>
   - 단일 HTML 파일: **좌측 메뉴 없이** 상단 바 + 전체 폭으로 파일 그대로 렌더링
   - 단일 마크다운 파일: H1·H2 제목 기준으로 **목차(사이드바 메뉴) 자동 생성**
     (`splitMarkdownSections` — 코드 블록 안 `#`은 lexer가 구분)
-- **홈**(`/`): 공개 도서를 **분류별 그룹 + 분류 필터 탭**으로 표시. 카드에는 세로(3:4) 표지,
-  제목(줄바꿈 표시), 작성자 닉네임, 설명, 최하단에 **유형 배지**와 (활성화 시) **👍 추천 버튼**
+- **홈**(`/`): 공개 도서를 **하나의 목록**으로 표시(분류별 그룹 없음). 상단 **분류 필터 탭**으로
+  분류를 고르면 해당 분류만 같은 순서로 표시. 정렬·구성은 관리자 설정(`home_layout`)이 결정.
+  카드에는 세로(3:4) 표지, 제목(줄바꿈 표시), 작성자 닉네임, 설명, 최하단에 **유형 배지**와
+  (활성화 시) **👍 추천 버튼**
 - **관리자**(`/admin`, 관리자 전용):
   - 분류(categories) 추가/이름 변경/순서 이동/삭제
   - 유형(book_types) 추가/이름 변경/순서 이동/삭제
   - 회원 추천 기능 켜기/끄기(`site_settings.recommend_enabled`)
+  - 홈 도서 목록 구성 선택(`site_settings.home_layout`): 최신순 / 추천순 / 추천+최신 2단
+    (2단일 때 추천 섹션 개수는 `home_featured_count`)
 - **추천**: 로그인 회원이 도서당 1회 추천/취소, 추천 수는 누구나 조회 가능
 - **검색**(`/search`): 헤더 검색창(모바일은 🔍 아이콘)으로 어느 페이지에서나 진입.
   공개 도서의 제목·설명과 본문(메뉴 제목·내용)을 ilike로 검색, 본문 매치는
@@ -86,6 +90,7 @@ VITE_SUPABASE_ANON_KEY=<anon key>
 | 4 | `admin.sql` | 관리자 플래그(`profiles.is_admin`) + `is_admin()` 함수, **유형 테이블화**(book_types, books.type의 check 제약 → FK 교체), 분류 관리자 쓰기 정책, 사이트 설정(site_settings), 추천(book_recommendations) |
 | 5 | `content-format.sql` | `books.content_format` 컬럼 추가 — 도서별 본문 형식('html' \| 'markdown') |
 | 6 | `single-file.sql` | `books.source_mode`('menu' \| 'single')와 `books.single_content` 추가 — 단일 파일 업로드 모드 |
+| 7 | `home-layout.sql` | `site_settings.home_layout`('latest' \| 'recommended' \| 'both')과 `home_featured_count` 추가 — 홈 목록 구성 |
 
 > `admin.sql`에는 최초 관리자 지정 구문이 포함되어 있습니다.
 > 이메일을 본인 계정으로 바꿔 실행하세요:
@@ -107,7 +112,8 @@ books                 도서 (owner_id, category_id, type→book_types FK, title
 book_menus            메뉴(목차) 트리 (book_id, parent_id 자기참조, title,
                       sort_order, html_content)
 profiles              회원 프로필 (id=auth.users FK, nickname, is_admin)
-site_settings         단일 행 사이트 설정 (id=1, recommend_enabled)
+site_settings         단일 행 사이트 설정 (id=1, recommend_enabled,
+                      home_layout, home_featured_count)
 book_recommendations  추천 (book_id, user_id 복합 PK)
 ```
 
@@ -212,3 +218,4 @@ supabase/                 SQL (실행 순서: schema → profiles → storage �
 - 전체 검색 (헤더 검색창 + `/search` — 도서 제목·설명·본문 검색, 스니펫 하이라이트)
 - 단일 파일 모드 (`single-file.sql` — 완성된 HTML은 메뉴 없는 전체 화면,
   마크다운은 H1·H2 기준 목차 자동 생성)
+- 홈 목록 개편 (`home-layout.sql` — 분류별 그룹 제거, 관리자가 최신순/추천순/2단 구성 선택)
