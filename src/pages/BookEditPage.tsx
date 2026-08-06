@@ -82,7 +82,7 @@ export default function BookEditPage() {
     return (
       <div>
         <ErrorAlert message="도서를 찾을 수 없습니다. 삭제되었거나 접근 권한이 없습니다." />
-        <Link to="/my" className="mt-4 inline-block text-sm text-blue-600 hover:underline">
+        <Link to="/my" className="mt-4 inline-block text-sm text-brand-600 hover:underline">
           ← 내 서재로
         </Link>
       </div>
@@ -92,7 +92,7 @@ export default function BookEditPage() {
     return (
       <div>
         <ErrorAlert message="내가 만든 도서만 편집할 수 있습니다." />
-        <Link to="/" className="mt-4 inline-block text-sm text-blue-600 hover:underline">
+        <Link to="/" className="mt-4 inline-block text-sm text-brand-600 hover:underline">
           ← 홈으로
         </Link>
       </div>
@@ -118,7 +118,7 @@ export default function BookEditPage() {
     <div>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <Link to="/my" className="text-sm text-blue-600 hover:underline">
+          <Link to="/my" className="text-sm text-brand-600 hover:underline">
             ← 내 서재
           </Link>
           <h1 className="mt-1 truncate text-2xl font-bold">{book.title}</h1>
@@ -141,7 +141,7 @@ export default function BookEditPage() {
                 onClick={() => setTab(t.value)}
                 className={`flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
                   isActive
-                    ? 'border-blue-600 text-blue-700'
+                    ? 'border-brand-600 text-brand-700'
                     : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-800'
                 }`}
               >
@@ -149,7 +149,7 @@ export default function BookEditPage() {
                 {t.badge && (
                   <span
                     className={`rounded-full px-1.5 py-0.5 text-[11px] leading-none ${
-                      isActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+                      isActive ? 'bg-brand-100 text-brand-700' : 'bg-gray-100 text-gray-500'
                     }`}
                   >
                     {t.badge}

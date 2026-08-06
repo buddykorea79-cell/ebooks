@@ -17,6 +17,50 @@ import TypeBadge from '../components/TypeBadge'
 
 const UNCATEGORIZED = '__none__'
 
+/** 표지가 없는 도서의 대체 표지 색 — 서가처럼 보이도록 id로 갈라 준다 */
+const COVER_TONES = [
+  'bg-brand-700',
+  'bg-slate-700',
+  'bg-teal-700',
+  'bg-rose-700',
+  'bg-amber-700',
+  'bg-violet-700',
+]
+
+function toneOf(id: string): string {
+  let sum = 0
+  for (let i = 0; i < id.length; i++) sum = (sum + id.charCodeAt(i)) % 997
+  return COVER_TONES[sum % COVER_TONES.length]
+}
+
+/** 표지 이미지가 없으면 제목을 넣은 표지를 그려 준다 */
+function BookCover({ book }: { book: Book }) {
+  if (book.cover_url) {
+    return (
+      <img
+        src={book.cover_url}
+        alt={`${book.title} 표지`}
+        loading="lazy"
+        className="aspect-3/4 w-full object-cover"
+      />
+    )
+  }
+  return (
+    <div
+      className={`relative flex aspect-3/4 w-full flex-col justify-between p-4 ${toneOf(book.id)}`}
+    >
+      {/* 책등 */}
+      <span className="absolute inset-y-0 left-0 w-1.5 bg-black/20" />
+      <span className="text-[10px] font-semibold tracking-[0.2em] text-white/60 uppercase">
+        LibroSpace
+      </span>
+      <span className="line-clamp-4 text-sm leading-snug font-bold break-keep text-white">
+        {book.title}
+      </span>
+    </div>
+  )
+}
+
 export default function HomePage() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -139,7 +183,10 @@ export default function HomePage() {
   // 'both'는 '전체' 탭에서만 2단으로 나눈다 (분류를 고르면 목록 하나)
   const splitSections = layout === 'both' && filter === 'all'
   const featured = splitSections
-    ? [...visible].filter((b) => (recCounts[b.id] ?? 0) > 0).sort(byRecommended).slice(0, featuredCount)
+    ? [...visible]
+        .filter((b) => (recCounts[b.id] ?? 0) > 0)
+        .sort(byRecommended)
+        .slice(0, featuredCount)
     : []
   const featuredIds = new Set(featured.map((b) => b.id))
 
@@ -164,33 +211,64 @@ export default function HomePage() {
 
   return (
     <div>
-      {/* 히어로: 배경 없이 문구만 */}
-      <section className="py-10 text-center sm:py-14">
-        <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">
-          지식이 모이는 공간,{' '}
-          <span className="text-4xl sm:text-5xl">
-            <span className="text-blue-600">Libro</span>Space
+      {/* 히어로 — 이 사이트가 무엇인지 한눈에 */}
+      <section className="overflow-hidden rounded-2xl border border-brand-100 bg-brand-50/60 px-6 py-12 sm:px-10 sm:py-16">
+        <div className="max-w-2xl">
+          <span className="inline-flex items-center rounded-full border border-brand-200 bg-white px-3 py-1 text-xs font-semibold tracking-wide text-brand-700">
+            AI · IT · 교육 교재
           </span>
-        </h1>
+          <h1 className="mt-5 text-3xl leading-tight font-extrabold tracking-tight text-gray-900 sm:text-[2.6rem]">
+            AI와 IT 지식을
+            <br className="hidden sm:block" /> 한 권으로 정리하는 공간
+          </h1>
+          <p className="mt-5 text-base leading-relaxed text-gray-600 sm:text-lg">
+            <span className="font-semibold text-gray-800">LibroSpace</span>는 AI·IT 분야의 도서와
+            실무 가이드, 강의용 실습 교재를 만들고 함께 보는 전자책 플랫폼입니다. 목차를 세우고
+            본문을 쓰면 그대로 읽기 좋은 책이 됩니다.
+          </p>
+          <div className="mt-7 flex flex-wrap items-center gap-3">
+            <a
+              href="#books"
+              className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+            >
+              도서 둘러보기
+            </a>
+            <Link
+              to="/my"
+              className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              내 교재 만들기
+            </Link>
+          </div>
+        </div>
       </section>
 
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-2xl font-bold">공개 도서</h2>
+      <div id="books" className="mt-12 flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">공개 도서</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            {books === null
+              ? '불러오는 중…'
+              : `누구나 읽을 수 있는 ${all.length}권이 올라와 있습니다.`}
+          </p>
+        </div>
         {books !== null && visible.length > 0 && !splitSections && (
-          <span className="text-sm text-gray-400">{sortLabel}</span>
+          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
+            {sortLabel}
+          </span>
         )}
       </div>
 
-      {/* 분류 필터 탭 */}
-      <div className="mt-4 flex flex-wrap gap-1 rounded-lg bg-gray-100 p-1 text-sm" role="tablist">
+      {/* 분류 필터 */}
+      <div className="mt-5 flex flex-wrap gap-2" role="tablist">
         {filters.map((f) => (
           <button
             key={f.value}
             onClick={() => setFilter(f.value)}
-            className={`rounded-md px-3 py-1.5 font-medium transition sm:px-5 ${
+            className={`rounded-full border px-4 py-1.5 text-sm font-medium transition-colors ${
               filter === f.value
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-500 hover:text-gray-800'
+                ? 'border-brand-600 bg-brand-600 text-white'
+                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-900'
             }`}
           >
             {f.label}
@@ -199,63 +277,81 @@ export default function HomePage() {
       </div>
 
       {error && (
-        <div className="mt-4">
+        <div className="mt-6">
           <ErrorAlert message={error} />
         </div>
       )}
 
-      {books === null && !error && <p className="mt-6 text-gray-500">불러오는 중…</p>}
+      {books === null && !error && (
+        <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+              <div className="aspect-3/4 w-full animate-pulse bg-gray-100" />
+              <div className="space-y-2 p-4">
+                <div className="h-4 w-3/4 animate-pulse rounded bg-gray-100" />
+                <div className="h-3 w-1/2 animate-pulse rounded bg-gray-100" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {books !== null && visible.length === 0 && (
-        <p className="mt-6 text-gray-500">
-          {filter === 'all'
-            ? '아직 공개된 도서가 없습니다.'
-            : '해당 분류의 공개된 도서가 없습니다.'}
-        </p>
+        <div className="mt-6 rounded-xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center">
+          <p className="text-base font-medium text-gray-700">
+            {filter === 'all'
+              ? '아직 공개된 도서가 없습니다.'
+              : '이 분류에는 아직 공개된 도서가 없습니다.'}
+          </p>
+          <p className="mt-1.5 text-sm text-gray-500">
+            내 서재에서 첫 도서를 만들어 공개해 보세요.
+          </p>
+          <Link
+            to="/my"
+            className="mt-5 inline-block rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+          >
+            내 서재로 가기
+          </Link>
+        </div>
       )}
 
       {sections.map((section) =>
         section.books.length === 0 ? null : (
           <section key={section.key} className="mt-8 first:mt-6">
             {section.title && (
-              <h3 className="text-lg font-semibold text-gray-800">{section.title}</h3>
+              <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-gray-900">
+                <span className="h-4 w-1 rounded-full bg-brand-600" />
+                {section.title}
+              </h3>
             )}
-            <div
-              className={`grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 ${
-                section.title ? 'mt-3' : ''
-              }`}
-            >
+            <div className="grid grid-cols-2 gap-4 sm:gap-5 md:grid-cols-3 lg:grid-cols-4">
               {section.books.map((book) => (
                 <Link
                   key={book.id}
                   to={`/book/${book.id}`}
-                  className="flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white transition hover:border-blue-300 hover:shadow-sm"
+                  className="group flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card transition-all duration-200 hover:-translate-y-1 hover:border-brand-200 hover:shadow-card-hover"
                 >
-                  {/* 표지: 세로(3:4) 비율 고정 */}
-                  {book.cover_url ? (
-                    <img
-                      src={book.cover_url}
-                      alt={`${book.title} 표지`}
-                      loading="lazy"
-                      className="aspect-[3/4] w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex aspect-[3/4] w-full items-center justify-center bg-gray-100 text-4xl">
-                      📕
+                  <div className="overflow-hidden">
+                    <div className="transition-transform duration-300 group-hover:scale-[1.03]">
+                      <BookCover book={book} />
                     </div>
-                  )}
-                  <div className="flex flex-1 flex-col p-3">
-                    <h3 className="text-sm font-semibold break-keep sm:text-base">{book.title}</h3>
+                  </div>
+                  <div className="flex flex-1 flex-col p-4">
+                    <h3 className="text-sm leading-snug font-semibold break-keep text-gray-900 group-hover:text-brand-700 sm:text-[15px]">
+                      {book.title}
+                    </h3>
                     {nicknames[book.owner_id] && (
-                      <p className="mt-0.5 truncate text-xs text-gray-400">
+                      <p className="mt-1 truncate text-xs text-gray-400">
                         {nicknames[book.owner_id]}
                       </p>
                     )}
                     {book.description && (
-                      <p className="mt-1 line-clamp-2 text-xs text-gray-500">{book.description}</p>
+                      <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-gray-500">
+                        {book.description}
+                      </p>
                     )}
                     {/* 유형 배지(+추천)는 카드 최하단 고정 */}
-                    <div className="mt-auto flex items-center justify-between pt-2">
+                    <div className="mt-auto flex items-center justify-between pt-3">
                       <TypeBadge type={book.type} />
                       {recommendEnabled && (
                         <button
@@ -268,10 +364,10 @@ export default function HomePage() {
                                 : '추천'
                               : '로그인 후 추천할 수 있습니다'
                           }
-                          className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition disabled:opacity-50 ${
+                          className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors disabled:opacity-50 ${
                             myRecs.has(book.id)
-                              ? 'border-blue-300 bg-blue-50 text-blue-600'
-                              : 'border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600'
+                              ? 'border-brand-300 bg-brand-50 text-brand-600'
+                              : 'border-gray-200 text-gray-500 hover:border-brand-300 hover:text-brand-600'
                           }`}
                         >
                           👍 {recCounts[book.id] ?? 0}

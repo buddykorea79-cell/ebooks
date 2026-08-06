@@ -103,7 +103,7 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={busy}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
         >
           {busy ? '처리 중…' : content ? '파일 다시 업로드' : '파일 업로드'}
         </button>

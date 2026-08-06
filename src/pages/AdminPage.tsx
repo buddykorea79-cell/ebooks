@@ -21,7 +21,7 @@ import type { HomeLayout, SiteSettings } from '../types/database'
 import ErrorAlert from '../components/ErrorAlert'
 
 const inputClass =
-  'rounded border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none'
+  'rounded border border-gray-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none'
 const smallBtn = 'rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100'
 const dangerBtn = 'rounded border border-red-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50'
 
@@ -180,7 +180,7 @@ function CategoryManager() {
         <button
           onClick={handleAdd}
           disabled={busy || !newName.trim()}
-          className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded bg-brand-600 px-3 py-1 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
         >
           추가
         </button>
@@ -343,7 +343,7 @@ function TypeManager() {
         <button
           onClick={handleAdd}
           disabled={busy || !newId.trim() || !newName.trim()}
-          className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded bg-brand-600 px-3 py-1 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
         >
           추가
         </button>
@@ -480,7 +480,7 @@ function MemberManager({ myId }: { myId: string | null }) {
                       <span className="text-sm font-medium">{member.nickname}</span>
                       {isMe && <span className="ml-1 text-xs text-gray-400">(나)</span>}
                       {isAdminMember && (
-                        <span className="ml-2 inline-block rounded bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-700">
+                        <span className="ml-2 inline-block rounded bg-brand-100 px-1.5 py-0.5 text-xs font-medium text-brand-700">
                           관리자
                         </span>
                       )}

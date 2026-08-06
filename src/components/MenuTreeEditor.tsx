@@ -137,12 +137,12 @@ export default function MenuTreeEditor({ book, menus, onChanged }: MenuTreeEdito
                     if (e.key === 'Enter') saveRename()
                     if (e.key === 'Escape') setRenamingId(null)
                   }}
-                  className="w-full min-w-0 flex-1 rounded-md border border-blue-400 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  className="w-full min-w-0 flex-1 rounded-md border border-brand-400 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-100"
                 />
                 <button
                   onClick={saveRename}
                   disabled={busy}
-                  className="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="rounded-md bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
                 >
                   저장
                 </button>
@@ -165,7 +165,7 @@ export default function MenuTreeEditor({ book, menus, onChanged }: MenuTreeEdito
                 <button
                   onClick={() => startRename(menu)}
                   title="클릭하면 이름을 바꿉니다"
-                  className="min-w-0 flex-1 truncate text-left text-sm text-gray-800 hover:text-blue-700"
+                  className="min-w-0 flex-1 truncate text-left text-sm text-gray-800 hover:text-brand-700"
                 >
                   {menu.title}
                 </button>
@@ -265,7 +265,7 @@ export default function MenuTreeEditor({ book, menus, onChanged }: MenuTreeEdito
         <button
           onClick={() => handleAdd(null)}
           disabled={busy || menus === null}
-          className="shrink-0 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+          className="shrink-0 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
         >
           + 새 메뉴
         </button>

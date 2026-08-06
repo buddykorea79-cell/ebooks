@@ -61,14 +61,14 @@ export default function SignupPage() {
     return (
       <div className="mx-auto max-w-sm">
         <h1 className="text-2xl font-bold">가입 완료</h1>
-        <div className="mt-6 rounded border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+        <div className="mt-6 rounded border border-brand-300 bg-brand-50 px-4 py-3 text-sm text-brand-800">
           <strong>{email}</strong> 주소로 인증 메일을 보냈습니다.
           <br />
           받은 편지함에서 인증 링크를 클릭한 뒤 로그인해 주세요.
         </div>
         <Link
           to="/login"
-          className="mt-4 block w-full rounded bg-blue-600 py-2 text-center text-sm font-semibold text-white hover:bg-blue-700"
+          className="mt-4 block w-full rounded bg-brand-600 py-2 text-center text-sm font-semibold text-white hover:bg-brand-700"
         >
           로그인 화면으로
         </Link>
@@ -93,7 +93,7 @@ export default function SignupPage() {
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
             placeholder="화면에 표시될 이름 (최대 20자)"
-            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
           />
         </div>
         <div>
@@ -107,7 +107,7 @@ export default function SignupPage() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
           />
         </div>
         <div>
@@ -121,7 +121,7 @@ export default function SignupPage() {
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
           />
         </div>
         <div>
@@ -135,7 +135,7 @@ export default function SignupPage() {
             autoComplete="new-password"
             value={passwordConfirm}
             onChange={(e) => setPasswordConfirm(e.target.value)}
-            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
           />
         </div>
         {error && (
@@ -146,14 +146,14 @@ export default function SignupPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          className="w-full rounded bg-brand-600 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
         >
           {submitting ? '가입 중…' : '가입하기'}
         </button>
       </form>
       <p className="mt-4 text-center text-sm text-gray-600">
         이미 계정이 있으신가요?{' '}
-        <Link to="/login" className="font-medium text-blue-600 hover:underline">
+        <Link to="/login" className="font-medium text-brand-600 hover:underline">
           로그인
         </Link>
       </p>

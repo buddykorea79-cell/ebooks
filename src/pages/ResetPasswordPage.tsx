@@ -54,7 +54,7 @@ export default function ResetPasswordPage() {
         </div>
         <Link
           to="/forgot-password"
-          className="mt-4 inline-block rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          className="mt-4 inline-block rounded bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
         >
           재설정 메일 다시 받기
         </Link>
@@ -71,7 +71,7 @@ export default function ResetPasswordPage() {
         </div>
         <Link
           to="/my"
-          className="mt-4 inline-block rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          className="mt-4 inline-block rounded bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
         >
           내 서재로 가기
         </Link>
@@ -97,7 +97,7 @@ export default function ResetPasswordPage() {
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
           />
         </div>
         <div>
@@ -111,14 +111,14 @@ export default function ResetPasswordPage() {
             autoComplete="new-password"
             value={passwordConfirm}
             onChange={(e) => setPasswordConfirm(e.target.value)}
-            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
           />
         </div>
         {error && <ErrorAlert message={error} />}
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          className="w-full rounded bg-brand-600 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
         >
           {submitting ? '변경 중…' : '비밀번호 변경'}
         </button>

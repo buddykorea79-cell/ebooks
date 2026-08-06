@@ -32,7 +32,7 @@ function TreeItem({
         onClick={onNavigate}
         className={`block truncate rounded px-3 py-1.5 text-sm ${
           active
-            ? 'bg-blue-100 font-semibold text-blue-700'
+            ? 'bg-brand-100 font-semibold text-brand-700'
             : 'text-gray-700 hover:bg-gray-100'
         }`}
         style={{ paddingLeft: 12 + depth * 14 }}
@@ -63,7 +63,7 @@ export default function Sidebar({ book, menus, activeMenuId, onNavigate }: Sideb
   return (
     <aside className="flex h-full w-80 shrink-0 flex-col border-r border-gray-200 bg-white">
       <div className="border-b border-gray-100 p-4">
-        <Link to="/" className="text-xs text-blue-600 hover:underline">
+        <Link to="/" className="text-xs text-brand-600 hover:underline">
           ← 홈으로
         </Link>
         <div className="mt-2">

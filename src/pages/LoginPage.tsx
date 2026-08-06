@@ -47,7 +47,7 @@ export default function LoginPage() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
           />
         </div>
         <div>
@@ -61,7 +61,7 @@ export default function LoginPage() {
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
           />
         </div>
         {error && (
@@ -72,19 +72,19 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          className="w-full rounded bg-brand-600 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
         >
           {submitting ? '로그인 중…' : '로그인'}
         </button>
       </form>
       <p className="mt-4 text-center text-sm text-gray-600">
         계정이 없으신가요?{' '}
-        <Link to="/signup" className="font-medium text-blue-600 hover:underline">
+        <Link to="/signup" className="font-medium text-brand-600 hover:underline">
           회원가입
         </Link>
       </p>
       <p className="mt-2 text-center text-sm">
-        <Link to="/forgot-password" className="text-gray-500 hover:text-blue-600 hover:underline">
+        <Link to="/forgot-password" className="text-gray-500 hover:text-brand-600 hover:underline">
           비밀번호를 잊으셨나요?
         </Link>
       </p>

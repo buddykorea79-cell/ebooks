@@ -150,7 +150,7 @@ export default function ContentEditorTab({
             style={{ paddingLeft: 10 + depth * 14 }}
             className={`flex w-full items-center gap-2 rounded-md py-1.5 pr-2 text-left text-sm transition-colors ${
               isSelected
-                ? 'bg-blue-50 font-semibold text-blue-700'
+                ? 'bg-brand-50 font-semibold text-brand-700'
                 : 'text-gray-700 hover:bg-gray-100'
             }`}
           >
@@ -232,7 +232,7 @@ export default function ContentEditorTab({
                   onClick={handleSave}
                   disabled={busy || !dirty}
                   title="Ctrl+S"
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-40"
+                  className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-40"
                 >
                   {busy ? '저장 중…' : '저장'}
                 </button>
@@ -260,7 +260,7 @@ export default function ContentEditorTab({
               />
             )}
 
-            <div className="mt-4 overflow-hidden rounded-lg border border-gray-300 focus-within:border-blue-400">
+            <div className="mt-4 overflow-hidden rounded-lg border border-gray-300 focus-within:border-brand-400">
               <CodeMirror
                 value={draft}
                 height="620px"

@@ -85,12 +85,12 @@ export default function SearchPage() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="도서 제목, 설명, 본문 내용 검색"
-          className="min-w-0 flex-1 rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          className="min-w-0 flex-1 rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
         />
         <button
           type="submit"
           disabled={!input.trim()}
-          className="shrink-0 rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          className="shrink-0 rounded bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
         >
           검색
         </button>
@@ -122,7 +122,7 @@ export default function SearchPage() {
                   <li key={book.id}>
                     <Link
                       to={`/book/${book.id}`}
-                      className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition hover:border-blue-300 hover:shadow-sm"
+                      className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition hover:border-brand-300 hover:shadow-sm"
                     >
                       {book.cover_url ? (
                         <img
@@ -166,7 +166,7 @@ export default function SearchPage() {
                     <li key={hit.menuId}>
                       <Link
                         to={`/book/${hit.bookId}/${hit.menuId}`}
-                        className="block rounded-lg border border-gray-200 bg-white p-3 transition hover:border-blue-300 hover:shadow-sm"
+                        className="block rounded-lg border border-gray-200 bg-white p-3 transition hover:border-brand-300 hover:shadow-sm"
                       >
                         <p className="text-sm font-semibold">
                           📄 {hit.menuTitle}

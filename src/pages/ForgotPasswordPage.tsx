@@ -27,18 +27,18 @@ export default function ForgotPasswordPage() {
     return (
       <div className="mx-auto max-w-sm">
         <h1 className="text-2xl font-bold">메일을 확인하세요</h1>
-        <div className="mt-6 rounded border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+        <div className="mt-6 rounded border border-brand-300 bg-brand-50 px-4 py-3 text-sm text-brand-800">
           <strong>{email}</strong> 주소로 비밀번호 재설정 메일을 보냈습니다.
           <br />
           메일의 링크를 누르면 새 비밀번호를 설정하는 화면으로 이동합니다.
           <br />
-          <span className="text-blue-600">
+          <span className="text-brand-600">
             메일이 보이지 않으면 스팸함을 확인해 주세요. (가입된 이메일에만 발송됩니다)
           </span>
         </div>
         <Link
           to="/login"
-          className="mt-4 inline-block text-sm font-medium text-blue-600 hover:underline"
+          className="mt-4 inline-block text-sm font-medium text-brand-600 hover:underline"
         >
           ← 로그인 화면으로
         </Link>
@@ -64,21 +64,21 @@ export default function ForgotPasswordPage() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
           />
         </div>
         {error && <ErrorAlert message={error} />}
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          className="w-full rounded bg-brand-600 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
         >
           {submitting ? '전송 중…' : '재설정 메일 보내기'}
         </button>
       </form>
       <p className="mt-4 text-center text-sm text-gray-600">
         비밀번호가 기억나셨나요?{' '}
-        <Link to="/login" className="font-medium text-blue-600 hover:underline">
+        <Link to="/login" className="font-medium text-brand-600 hover:underline">
           로그인
         </Link>
       </p>

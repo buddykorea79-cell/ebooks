@@ -1,1 +1,53 @@
-@import "tailwindcss";
+@import 'tailwindcss';
+
+/*
+ * 본문 서체(Pretendard)는 index.html의 <link>가 받아 온다.
+ * 여기서 @import 하면 Tailwind가 펼쳐진 뒤라 스타일시트 맨 앞이 아니게 되어
+ * 브라우저가 그 @import를 무시한다. 못 받아오면 아래 system 폰트로 대체된다.
+ */
+@theme {
+  --font-sans:
+    'Pretendard Variable', Pretendard, ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+
+  /* 브랜드 색 — 여기만 바꾸면 앱 전체가 따라온다 */
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-800: #3730a3;
+  --color-brand-900: #312e81;
+
+  /* 카드용 얕은 그림자 — 기본 shadow보다 부드럽게 */
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 12px rgb(15 23 42 / 0.05);
+  --shadow-card-hover: 0 2px 4px rgb(15 23 42 / 0.06), 0 12px 28px rgb(15 23 42 / 0.1);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* 한국어는 단어 중간에서 끊기면 읽기 나쁘다 */
+  h1,
+  h2,
+  h3,
+  h4 {
+    word-break: keep-all;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-100);
+    color: var(--color-brand-900);
+  }
+}

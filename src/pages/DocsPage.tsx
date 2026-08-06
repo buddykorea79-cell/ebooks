@@ -8,7 +8,7 @@ export default function DocsPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="text-3xl font-bold tracking-tight">
-        <span className="text-blue-600">Libro</span>Space 사용 방법
+        <span className="text-brand-600">Libro</span>Space 사용 방법
       </h1>
       <p className="mt-3 text-gray-600">
         LibroSpace는 지식이 모이는 공간입니다. 도서·가이드·매뉴얼을 만들고, 계층형 메뉴로
@@ -26,7 +26,7 @@ export default function DocsPage() {
           </li>
           <li>
             비밀번호를 잊었다면 로그인 화면의{' '}
-            <Link to="/forgot-password" className="text-blue-600 hover:underline">
+            <Link to="/forgot-password" className="text-brand-600 hover:underline">
               비밀번호를 잊으셨나요?
             </Link>
             에서 재설정 메일을 받을 수 있습니다.
@@ -182,9 +182,9 @@ export default function DocsPage() {
         </ul>
       </section>
 
-      <section className="mt-10 mb-4 rounded-lg border border-blue-200 bg-blue-50 p-5">
-        <h2 className="text-base font-bold text-blue-900">자주 묻는 질문</h2>
-        <dl className="mt-3 space-y-3 text-sm leading-relaxed text-blue-900/90">
+      <section className="mt-10 mb-4 rounded-lg border border-brand-200 bg-brand-50 p-5">
+        <h2 className="text-base font-bold text-brand-900">자주 묻는 질문</h2>
+        <dl className="mt-3 space-y-3 text-sm leading-relaxed text-brand-900/90">
           <div>
             <dt className="font-semibold">Q. 저장한 콘텐츠가 뷰어에 안 보여요.</dt>
             <dd className="mt-0.5">

@@ -24,7 +24,7 @@ interface BookFormProps {
 }
 
 const inputClass =
-  'mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none'
+  'mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none'
 
 export default function BookForm({
   categories,
@@ -224,7 +224,7 @@ export default function BookForm({
         <button
           type="submit"
           disabled={submitting}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
         >
           {submitting ? '저장 중…' : submitLabel}
         </button>

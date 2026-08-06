@@ -171,7 +171,7 @@ export default function CoverUploader({ book, onSaved }: CoverUploaderProps) {
             value={svgCode}
             onChange={(e) => setSvgCode(e.target.value)}
             placeholder={'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400">\n  …\n</svg>'}
-            className="mt-2 w-full rounded border border-gray-300 px-2 py-1.5 font-mono text-xs focus:border-blue-500 focus:outline-none"
+            className="mt-2 w-full rounded border border-gray-300 px-2 py-1.5 font-mono text-xs focus:border-brand-500 focus:outline-none"
           />
           {svgCode.trim() && !svgPreview && (
             <p className="mt-1 text-xs text-amber-600">
@@ -183,7 +183,7 @@ export default function CoverUploader({ book, onSaved }: CoverUploaderProps) {
               type="button"
               onClick={handleApplySvg}
               disabled={busy || !svgPreview}
-              className="flex-1 rounded bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              className="flex-1 rounded bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
             >
               {busy ? '처리 중…' : '표지로 적용'}
             </button>

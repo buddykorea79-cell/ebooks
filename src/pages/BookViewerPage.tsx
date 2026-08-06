@@ -85,7 +85,7 @@ export default function BookViewerPage() {
           <ErrorAlert
             message={error ?? '도서를 찾을 수 없습니다. 삭제되었거나 비공개 상태입니다.'}
           />
-          <Link to="/" className="mt-4 inline-block text-sm text-blue-600 hover:underline">
+          <Link to="/" className="mt-4 inline-block text-sm text-brand-600 hover:underline">
             ← 홈으로
           </Link>
         </div>
