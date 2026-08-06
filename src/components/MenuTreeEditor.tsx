@@ -1,16 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
-import CodeMirror from '@uiw/react-codemirror'
-import { html as htmlLang } from '@codemirror/lang-html'
-import { markdown as markdownLang } from '@codemirror/lang-markdown'
+import { useState } from 'react'
 import type { Book, BookMenu } from '../types/database'
-import { MARKDOWN_BASE_CSS, renderMarkdown } from '../lib/markdown'
-import {
-  createMenu,
-  deleteMenu,
-  fetchMenus,
-  updateMenu,
-  updateMenuPositions,
-} from '../api/menus'
+import { createMenu, deleteMenu, updateMenu, updateMenuPositions } from '../api/menus'
 import {
   buildMenuTree,
   computeIndent,
@@ -20,62 +10,29 @@ import {
   siblingsOf,
   type MenuTreeNode,
 } from '../lib/menuTree'
-import { useAuth } from '../contexts/AuthContext'
-import AiAssistPanel from './AiAssistPanel'
 import ErrorAlert from './ErrorAlert'
-import HtmlViewer from './HtmlViewer'
 
 interface MenuTreeEditorProps {
   book: Book
+  /** 목록은 편집 페이지가 소유한다 (콘텐츠 작성 탭과 같은 데이터를 본다) */
+  menus: BookMenu[] | null
+  /** 트리를 바꾼 뒤 목록을 다시 읽는다 */
+  onChanged: () => Promise<void>
 }
 
 const iconBtn =
-  'rounded border border-gray-300 px-1.5 py-0.5 text-xs text-gray-600 hover:bg-gray-100 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent'
+  'rounded-md px-1.5 py-1 text-xs leading-none text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:cursor-default disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-gray-400'
 
-export default function MenuTreeEditor({ book }: MenuTreeEditorProps) {
-  const bookId = book.id
-  const { aiEnabled } = useAuth()
-  const isMarkdown = (book.content_format ?? 'html') === 'markdown'
-  const formatLabel = isMarkdown ? '마크다운' : 'HTML'
-  const [menus, setMenus] = useState<BookMenu[] | null>(null)
+/**
+ * 메뉴(목차) 트리 관리 — 추가·이름 변경·순서 이동·들여쓰기·삭제.
+ * 본문 작성은 '콘텐츠 작성' 탭이 담당한다. 목차가 길어져도 편집기를
+ * 아래로 밀어내지 않도록 화면을 나눠 두었다.
+ */
+export default function MenuTreeEditor({ book, menus, onChanged }: MenuTreeEditorProps) {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [draft, setDraft] = useState('')
-  const [htmlSaved, setHtmlSaved] = useState(false)
-
-  const load = useCallback(async () => {
-    const data = await fetchMenus(bookId)
-    setMenus(data)
-  }, [bookId])
-
-  useEffect(() => {
-    load().catch((err) => {
-      const msg = err instanceof Error ? err.message : String(err)
-      setError(`메뉴를 불러오지 못했습니다: ${msg}`)
-    })
-  }, [load])
-
-  useEffect(() => {
-    if (!htmlSaved) return
-    const t = setTimeout(() => setHtmlSaved(false), 3000)
-    return () => clearTimeout(t)
-  }, [htmlSaved])
-
-  // 메뉴를 아직 고르지 않았으면 첫 메뉴를 자동으로 연다.
-  // 편집기와 AI 작성 도우미는 '선택된 메뉴' 블록 안에 있어서,
-  // 아무것도 고르지 않으면 화면에 나타나지 않는다.
-  useEffect(() => {
-    if (selectedId !== null || !menus || menus.length === 0) return
-    const first = buildMenuTree(menus)[0]?.menu ?? menus[0]
-    setSelectedId(first.id)
-    setDraft(first.html_content ?? '')
-  }, [menus, selectedId])
-
-  const selectedMenu = selectedId && menus ? (menus.find((m) => m.id === selectedId) ?? null) : null
-  const draftDirty = selectedMenu ? draft !== (selectedMenu.html_content ?? '') : false
 
   /** 공통 실행기: 작업 → 목록 재조회, 에러는 화면에 표시 */
   async function run(op: () => Promise<void>) {
@@ -83,7 +40,7 @@ export default function MenuTreeEditor({ book }: MenuTreeEditorProps) {
     setError(null)
     try {
       await op()
-      await load()
+      await onChanged()
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(`작업에 실패했습니다: ${msg}`)
@@ -92,35 +49,12 @@ export default function MenuTreeEditor({ book }: MenuTreeEditorProps) {
     }
   }
 
-  function handleSelect(menu: BookMenu) {
-    if (menu.id === selectedId) return
-    if (
-      draftDirty &&
-      !window.confirm('저장하지 않은 변경사항이 있습니다. 버리고 다른 메뉴로 이동할까요?')
-    ) {
-      return
-    }
-    setSelectedId(menu.id)
-    setDraft(menu.html_content ?? '')
-    setHtmlSaved(false)
-  }
-
-  function handleSaveHtml() {
-    if (!selectedMenu) return
-    const id = selectedMenu.id
-    const content = draft
-    run(async () => {
-      await updateMenu(id, { html_content: content })
-      setHtmlSaved(true)
-    })
-  }
-
   function handleAdd(parentId: string | null) {
     if (!menus) return
     const current = menus
     run(async () => {
       const created = await createMenu({
-        book_id: bookId,
+        book_id: book.id,
         parent_id: parentId,
         title: '새 메뉴',
         sort_order: siblingsOf(current, parentId).length,
@@ -176,13 +110,9 @@ export default function MenuTreeEditor({ book }: MenuTreeEditorProps) {
     const n = countDescendants(menus, menu.id)
     const msg =
       n > 0
-        ? `'${menu.title}'과(와) 하위 메뉴 ${n}개가 모두 삭제됩니다.\n삭제된 메뉴의 HTML 콘텐츠도 되돌릴 수 없습니다. 계속할까요?`
-        : `'${menu.title}' 메뉴를 삭제할까요?`
+        ? `'${menu.title}'과(와) 하위 메뉴 ${n}개가 모두 삭제됩니다.\n작성한 본문도 함께 사라지며 되돌릴 수 없습니다. 계속할까요?`
+        : `'${menu.title}' 메뉴를 삭제할까요?\n작성한 본문도 함께 사라집니다.`
     if (!window.confirm(msg)) return
-    if (menu.id === selectedId || (selectedId && isDescendantOf(menus, selectedId, menu.id))) {
-      setSelectedId(null)
-      setDraft('')
-    }
     run(() => deleteMenu(menu.id))
   }
 
@@ -190,252 +120,187 @@ export default function MenuTreeEditor({ book }: MenuTreeEditorProps) {
     return nodes.map((node, idx) => {
       const menu = node.menu
       const isRenaming = renamingId === menu.id
-      const isSelected = selectedId === menu.id
+      const hasContent = (menu.html_content ?? '').trim().length > 0
       return (
-        <div key={menu.id}>
+        <li key={menu.id}>
           <div
-            className={`flex items-center justify-between gap-2 rounded border px-2 py-1.5 ${
-              isSelected ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-white'
-            }`}
-            style={{ marginLeft: depth * 24 }}
+            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2.5 py-2 transition-colors hover:border-gray-300"
+            style={{ marginLeft: depth * 20 }}
           >
-            <div className="flex min-w-0 flex-1 items-center gap-1.5">
-              {depth > 0 && <span className="shrink-0 text-gray-300">└</span>}
-              {isRenaming ? (
-                <div className="flex flex-1 items-center gap-1.5">
-                  <input
-                    autoFocus
-                    value={renameValue}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') saveRename()
-                      if (e.key === 'Escape') setRenamingId(null)
-                    }}
-                    className="w-full min-w-0 flex-1 rounded border border-blue-400 px-2 py-0.5 text-sm focus:outline-none"
-                  />
-                  <button onClick={saveRename} disabled={busy} className={iconBtn}>
-                    저장
-                  </button>
-                  <button onClick={() => setRenamingId(null)} disabled={busy} className={iconBtn}>
-                    취소
-                  </button>
-                </div>
-              ) : (
+            {isRenaming ? (
+              <div className="flex flex-1 items-center gap-1.5">
+                <input
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveRename()
+                    if (e.key === 'Escape') setRenamingId(null)
+                  }}
+                  className="w-full min-w-0 flex-1 rounded-md border border-blue-400 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
+                />
                 <button
-                  onClick={() => handleSelect(menu)}
-                  title={`클릭하면 ${formatLabel} 콘텐츠를 편집합니다`}
-                  className={`truncate text-left text-sm ${
-                    isSelected ? 'font-semibold text-blue-700' : 'text-gray-800'
+                  onClick={saveRename}
+                  disabled={busy}
+                  className="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  저장
+                </button>
+                <button
+                  onClick={() => setRenamingId(null)}
+                  disabled={busy}
+                  className="rounded-md border border-gray-300 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100"
+                >
+                  취소
+                </button>
+              </div>
+            ) : (
+              <>
+                <span
+                  title={hasContent ? '본문이 작성되어 있습니다' : '본문이 비어 있습니다'}
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                    hasContent ? 'bg-emerald-500' : 'bg-gray-300'
                   }`}
+                />
+                <button
+                  onClick={() => startRename(menu)}
+                  title="클릭하면 이름을 바꿉니다"
+                  className="min-w-0 flex-1 truncate text-left text-sm text-gray-800 hover:text-blue-700"
                 >
                   {menu.title}
                 </button>
-              )}
-            </div>
-            {!isRenaming && (
-              <div className="flex shrink-0 items-center gap-1">
-                <button
-                  onClick={() => handleMove(menu.id, 'up')}
-                  disabled={busy || idx === 0}
-                  title="위로 이동"
-                  aria-label="위로 이동"
-                  className={iconBtn}
-                >
-                  ↑
-                </button>
-                <button
-                  onClick={() => handleMove(menu.id, 'down')}
-                  disabled={busy || idx === nodes.length - 1}
-                  title="아래로 이동"
-                  aria-label="아래로 이동"
-                  className={iconBtn}
-                >
-                  ↓
-                </button>
-                <button
-                  onClick={() => handleOutdent(menu.id)}
-                  disabled={busy || depth === 0}
-                  title="내어쓰기 (한 단계 위로)"
-                  aria-label="내어쓰기"
-                  className={iconBtn}
-                >
-                  ←
-                </button>
-                <button
-                  onClick={() => handleIndent(menu.id)}
-                  disabled={busy || idx === 0}
-                  title="들여쓰기 (위 메뉴의 하위로)"
-                  aria-label="들여쓰기"
-                  className={iconBtn}
-                >
-                  →
-                </button>
-                <button
-                  onClick={() => startRename(menu)}
-                  disabled={busy}
-                  title="이름 변경"
-                  className={iconBtn}
-                >
-                  이름
-                </button>
-                <button
-                  onClick={() => handleAdd(menu.id)}
-                  disabled={busy}
-                  title="하위 메뉴 추가"
-                  className={iconBtn}
-                >
-                  +하위
-                </button>
-                <button
-                  onClick={() => handleDelete(menu)}
-                  disabled={busy}
-                  title="삭제"
-                  className="rounded border border-red-300 px-1.5 py-0.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-30"
-                >
-                  삭제
-                </button>
-              </div>
+                <div className="flex shrink-0 items-center">
+                  <button
+                    onClick={() => handleMove(menu.id, 'up')}
+                    disabled={busy || idx === 0}
+                    title="위로 이동"
+                    aria-label="위로 이동"
+                    className={iconBtn}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    onClick={() => handleMove(menu.id, 'down')}
+                    disabled={busy || idx === nodes.length - 1}
+                    title="아래로 이동"
+                    aria-label="아래로 이동"
+                    className={iconBtn}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    onClick={() => handleOutdent(menu.id)}
+                    disabled={busy || depth === 0}
+                    title="내어쓰기 (한 단계 위로)"
+                    aria-label="내어쓰기"
+                    className={iconBtn}
+                  >
+                    ←
+                  </button>
+                  <button
+                    onClick={() => handleIndent(menu.id)}
+                    disabled={busy || idx === 0}
+                    title="들여쓰기 (위 메뉴의 하위로)"
+                    aria-label="들여쓰기"
+                    className={iconBtn}
+                  >
+                    →
+                  </button>
+                  <span className="mx-1 h-4 w-px bg-gray-200" />
+                  <button
+                    onClick={() => startRename(menu)}
+                    disabled={busy}
+                    title="이름 변경"
+                    className={iconBtn}
+                  >
+                    이름
+                  </button>
+                  <button
+                    onClick={() => handleAdd(menu.id)}
+                    disabled={busy}
+                    title="하위 메뉴 추가"
+                    className={iconBtn}
+                  >
+                    +하위
+                  </button>
+                  <button
+                    onClick={() => handleDelete(menu)}
+                    disabled={busy}
+                    title="삭제"
+                    aria-label="삭제"
+                    className="rounded-md px-1.5 py-1 text-xs leading-none text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-25"
+                  >
+                    삭제
+                  </button>
+                </div>
+              </>
             )}
           </div>
-          <div className="mt-1 space-y-1">{renderNodes(node.children, depth + 1)}</div>
-        </div>
+          {node.children.length > 0 && (
+            <ul className="mt-1.5 space-y-1.5">{renderNodes(node.children, depth + 1)}</ul>
+          )}
+        </li>
       )
     })
   }
 
   if (menus === null && !error) {
-    return <p className="text-gray-500">메뉴를 불러오는 중…</p>
+    return <p className="text-sm text-gray-500">메뉴를 불러오는 중…</p>
   }
 
   const tree = menus ? buildMenuTree(menus) : []
+  const total = menus?.length ?? 0
+  const written = menus?.filter((m) => (m.html_content ?? '').trim()).length ?? 0
 
   return (
-    <div>
-      <div className="flex max-w-3xl items-center justify-between">
-        <p className="text-sm text-gray-500">
-          메뉴 이름을 클릭하면 {formatLabel} 콘텐츠를 편집할 수 있습니다.
-          {aiEnabled && ' 편집기 바로 위에 ✨ AI 작성 도우미가 열립니다.'}
-        </p>
+    <div className="max-w-3xl">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">목차 구성</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            메뉴를 추가하고 순서·단계를 정합니다. 본문은{' '}
+            <strong className="font-medium text-gray-700">콘텐츠 작성</strong> 탭에서 씁니다.
+          </p>
+        </div>
         <button
           onClick={() => handleAdd(null)}
           disabled={busy || menus === null}
-          className="shrink-0 rounded bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          className="shrink-0 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
         >
           + 새 메뉴
         </button>
       </div>
 
       {error && (
-        <div className="mt-3 max-w-3xl">
+        <div className="mt-4">
           <ErrorAlert message={error} />
         </div>
       )}
 
-      {menus !== null && tree.length === 0 && (
-        <p className="mt-6 text-gray-500">
-          아직 메뉴가 없습니다. '+ 새 메뉴' 버튼으로 첫 메뉴를 만들어 보세요.
-          {aiEnabled && ' 메뉴를 만들면 편집기와 AI 작성 도우미가 나타납니다.'}
-        </p>
+      {total > 0 && (
+        <div className="mt-4 flex items-center gap-3 text-xs text-gray-500">
+          <span>메뉴 {total}개</span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            본문 작성됨 {written}개
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-gray-300" />
+            비어 있음 {total - written}개
+          </span>
+        </div>
       )}
 
-      <div className="mt-3 max-w-3xl space-y-1">{renderNodes(tree, 0)}</div>
-
-      {selectedMenu && (
-        <div className="mt-8 border-t border-gray-200 pt-6">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-base font-semibold">
-              '{selectedMenu.title}' {formatLabel} 편집
-            </h3>
-            <div className="flex items-center gap-2">
-              {htmlSaved && !draftDirty && (
-                <span className="text-xs font-medium text-emerald-600">저장되었습니다 ✓</span>
-              )}
-              {draftDirty && (
-                <span className="text-xs font-medium text-amber-600">저장되지 않은 변경</span>
-              )}
-              <button
-                onClick={handleSaveHtml}
-                disabled={busy || !draftDirty}
-                className="rounded bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                저장
-              </button>
-            </div>
-          </div>
-
-          {/* 관리자가 허용한 회원에게만 노출. 결과는 초안에만 들어가고 저장은 위 '저장' 버튼이 담당한다 */}
-          {aiEnabled && (
-            <AiAssistPanel
-              book={book}
-              sectionTitle={selectedMenu.title}
-              format={isMarkdown ? 'markdown' : 'html'}
-              content={draft}
-              onReplace={(text) => setDraft(text)}
-              onAppend={(text) =>
-                setDraft((prev) => (prev.trim() ? `${prev.replace(/\s+$/, '')}\n\n${text}` : text))
-              }
-              disabled={busy}
-            />
-          )}
-
-          <div className="mt-3 grid gap-4 lg:grid-cols-2">
-            <div className="overflow-hidden rounded border border-gray-300">
-              <CodeMirror
-                value={draft}
-                height="520px"
-                extensions={[isMarkdown ? markdownLang() : htmlLang()]}
-                onChange={(value) => setDraft(value)}
-                placeholder={
-                  isMarkdown
-                    ? '마크다운(MD) 문서를 작성하거나 붙여넣으세요'
-                    : 'Claude 아티팩트 등에서 복사한 HTML을 붙여넣으세요'
-                }
-              />
-            </div>
-            <div>
-              <p className="mb-1 text-xs text-gray-500">미리보기 (마지막 저장 내용)</p>
-              <div className="max-h-[520px] overflow-y-auto rounded border border-gray-300 bg-white">
-                {selectedMenu.html_content ? (
-                  <HtmlViewer
-                    menuId={selectedMenu.id}
-                    html={
-                      isMarkdown
-                        ? renderMarkdown(selectedMenu.html_content)
-                        : selectedMenu.html_content
-                    }
-                    injectedCss={
-                      [
-                        isMarkdown ? MARKDOWN_BASE_CSS : '',
-                        book.css_apply_to_content ? (book.custom_css ?? '') : '',
-                      ]
-                        .filter(Boolean)
-                        .join('\n') || null
-                    }
-                  />
-                ) : (
-                  <p className="p-4 text-sm text-gray-400">
-                    저장된 콘텐츠가 없습니다. {formatLabel} 콘텐츠를 입력하고 저장하면 여기에
-                    표시됩니다.
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
+      {menus !== null && tree.length === 0 ? (
+        <div className="mt-4 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-10 text-center">
+          <p className="text-sm text-gray-600">아직 메뉴가 없습니다.</p>
+          <p className="mt-1 text-xs text-gray-500">
+            '+ 새 메뉴'로 첫 목차를 만들면 콘텐츠 작성 탭에서 본문을 쓸 수 있습니다.
+          </p>
         </div>
+      ) : (
+        <ul className="mt-3 space-y-1.5">{renderNodes(tree, 0)}</ul>
       )}
     </div>
   )
-}
-
-/** targetId가 ancestorId의 자손인지 (선택된 메뉴의 조상 삭제 시 선택 해제용) */
-function isDescendantOf(menus: BookMenu[], targetId: string, ancestorId: string): boolean {
-  let current = menus.find((m) => m.id === targetId)
-  const visited = new Set<string>()
-  while (current?.parent_id) {
-    if (current.parent_id === ancestorId) return true
-    if (visited.has(current.parent_id)) return false
-    visited.add(current.parent_id)
-    current = menus.find((m) => m.id === current!.parent_id)
-  }
-  return false
 }

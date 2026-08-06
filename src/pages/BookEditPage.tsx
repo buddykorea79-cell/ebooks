@@ -1,27 +1,37 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import type { Book, Category } from '../types/database'
+import type { Book, BookMenu, Category } from '../types/database'
 import { fetchBook, updateBook } from '../api/books'
 import { fetchCategories } from '../api/categories'
+import { fetchMenus } from '../api/menus'
 import { useAuth } from '../contexts/AuthContext'
 import BookForm, { type BookFormValues } from '../components/BookForm'
+import ContentEditorTab from '../components/ContentEditorTab'
 import CoverUploader from '../components/CoverUploader'
 import CssEditorTab from '../components/CssEditorTab'
 import ErrorAlert from '../components/ErrorAlert'
 import MenuTreeEditor from '../components/MenuTreeEditor'
 import SingleContentTab from '../components/SingleContentTab'
 
-type Tab = 'info' | 'menus' | 'css'
+type Tab = 'info' | 'menus' | 'content' | 'css'
 
 export default function BookEditPage() {
   const { bookId } = useParams<{ bookId: string }>()
   const { user } = useAuth()
   const [book, setBook] = useState<Book | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
+  const [menus, setMenus] = useState<BookMenu[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [menuError, setMenuError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('info')
   const [saved, setSaved] = useState(false)
+
+  // 목차 관리 탭과 콘텐츠 작성 탭이 같은 목록을 보도록 여기서 소유한다
+  const reloadMenus = useCallback(async () => {
+    if (!bookId) return
+    setMenus(await fetchMenus(bookId))
+  }, [bookId])
 
   useEffect(() => {
     async function load() {
@@ -41,6 +51,13 @@ export default function BookEditPage() {
     }
     load()
   }, [bookId])
+
+  useEffect(() => {
+    reloadMenus().catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err)
+      setMenuError(`메뉴를 불러오지 못했습니다: ${msg}`)
+    })
+  }, [reloadMenus])
 
   useEffect(() => {
     if (!saved) return
@@ -83,15 +100,23 @@ export default function BookEditPage() {
   }
 
   const singleMode = (book.source_mode ?? 'menu') === 'single'
-  const tabs: { value: Tab; label: string }[] = [
-    { value: 'info', label: '기본정보' },
-    { value: 'menus', label: singleMode ? '파일 업로드' : '메뉴 관리' },
-    { value: 'css', label: 'CSS' },
-  ]
+  // 단일 파일 모드는 목차·본문이 업로드한 파일 하나로 끝나므로 탭을 나누지 않는다
+  const tabs: { value: Tab; label: string; badge?: string }[] = singleMode
+    ? [
+        { value: 'info', label: '기본정보' },
+        { value: 'menus', label: '파일 업로드' },
+        { value: 'css', label: 'CSS' },
+      ]
+    : [
+        { value: 'info', label: '기본정보' },
+        { value: 'menus', label: '목차 관리', badge: menus ? String(menus.length) : undefined },
+        { value: 'content', label: '콘텐츠 작성' },
+        { value: 'css', label: 'CSS' },
+      ]
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <Link to="/my" className="text-sm text-blue-600 hover:underline">
             ← 내 서재
@@ -100,35 +125,47 @@ export default function BookEditPage() {
         </div>
         <Link
           to={`/book/${book.id}`}
-          className="shrink-0 rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
+          className="shrink-0 rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
         >
-          보기
+          보기 ↗
         </Link>
       </div>
 
       <div className="mt-4 border-b border-gray-200">
-        <nav className="-mb-px flex gap-4">
-          {tabs.map((t) => (
-            <button
-              key={t.value}
-              onClick={() => setTab(t.value)}
-              className={`border-b-2 px-1 py-2 text-sm font-medium ${
-                tab === t.value
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+        <nav className="-mb-px flex gap-1 overflow-x-auto">
+          {tabs.map((t) => {
+            const isActive = tab === t.value
+            return (
+              <button
+                key={t.value}
+                onClick={() => setTab(t.value)}
+                className={`flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'border-blue-600 text-blue-700'
+                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-800'
+                }`}
+              >
+                {t.label}
+                {t.badge && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[11px] leading-none ${
+                      isActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+                    }`}
+                  >
+                    {t.badge}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </nav>
       </div>
 
-      {/* 탭 전환 시 편집 중인 상태(메뉴 선택, CSS 초안)가 사라지지 않도록 hidden으로 유지 */}
+      {/* 탭 전환 시 편집 중인 상태(선택한 꼭지, 초안, CSS)가 사라지지 않도록 hidden으로 유지 */}
       <div className="mt-6">
         <div className={tab === 'info' ? '' : 'hidden'}>
           {saved && (
-            <div className="mb-4 max-w-xl rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            <div className="mb-4 max-w-xl rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
               저장되었습니다 ✓
             </div>
           )}
@@ -144,13 +181,33 @@ export default function BookEditPage() {
             <CoverUploader book={book} onSaved={setBook} />
           </div>
         </div>
+
         <div className={tab === 'menus' ? '' : 'hidden'}>
           {singleMode ? (
             <SingleContentTab book={book} onSaved={setBook} />
           ) : (
-            <MenuTreeEditor book={book} />
+            <>
+              {menuError && (
+                <div className="mb-4 max-w-3xl">
+                  <ErrorAlert message={menuError} />
+                </div>
+              )}
+              <MenuTreeEditor book={book} menus={menus} onChanged={reloadMenus} />
+            </>
           )}
         </div>
+
+        {!singleMode && (
+          <div className={tab === 'content' ? '' : 'hidden'}>
+            <ContentEditorTab
+              book={book}
+              menus={menus}
+              onSaved={reloadMenus}
+              active={tab === 'content'}
+            />
+          </div>
+        )}
+
         <div className={tab === 'css' ? '' : 'hidden'}>
           <CssEditorTab book={book} onSaved={setBook} />
         </div>

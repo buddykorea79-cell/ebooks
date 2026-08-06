@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import type { Book, ContentFormat } from '../types/database'
 import { updateBook } from '../api/books'
-import { MARKDOWN_BASE_CSS, renderMarkdown, splitMarkdownSections } from '../lib/markdown'
+import { renderMarkdown, splitMarkdownSections } from '../lib/markdown'
+import { buildInjectedCss, openContentPreview } from '../lib/preview'
 import ErrorAlert from './ErrorAlert'
 import HtmlViewer from './HtmlViewer'
 
@@ -109,6 +110,25 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
         {content && (
           <button
             type="button"
+            onClick={() =>
+              setError(
+                openContentPreview({
+                  title: book.title,
+                  content,
+                  format: isMarkdown ? 'markdown' : 'html',
+                  css: buildInjectedCss(book, isMarkdown ? 'markdown' : 'html'),
+                  note: '업로드된 내용',
+                }),
+              )
+            }
+            className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+          >
+            새 창 미리보기 ↗
+          </button>
+        )}
+        {content && (
+          <button
+            type="button"
             onClick={handleRemove}
             disabled={busy}
             className="rounded border border-red-300 px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
@@ -156,14 +176,7 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
             <HtmlViewer
               menuId="single-preview"
               html={isMarkdown ? renderMarkdown(content) : content}
-              injectedCss={
-                [
-                  isMarkdown ? MARKDOWN_BASE_CSS : '',
-                  book.css_apply_to_content ? (book.custom_css ?? '') : '',
-                ]
-                  .filter(Boolean)
-                  .join('\n') || null
-              }
+              injectedCss={buildInjectedCss(book, isMarkdown ? 'markdown' : 'html')}
             />
           </div>
         </div>

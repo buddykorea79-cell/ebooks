@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { Book, ContentFormat } from '../types/database'
 import { AI_ACTION_LIST, requestAiContent, type AiAction, type AiResponse } from '../api/ai'
-import { MARKDOWN_BASE_CSS, renderMarkdown } from '../lib/markdown'
+import { renderMarkdown } from '../lib/markdown'
+import { buildInjectedCss } from '../lib/preview'
 import ErrorAlert from './ErrorAlert'
 import HtmlViewer from './HtmlViewer'
 
@@ -240,14 +241,7 @@ export default function AiAssistPanel({
                   <HtmlViewer
                     menuId={`ai-preview-${book.id}`}
                     html={isMarkdown ? renderMarkdown(result.content) : result.content}
-                    injectedCss={
-                      [
-                        isMarkdown ? MARKDOWN_BASE_CSS : '',
-                        book.css_apply_to_content ? (book.custom_css ?? '') : '',
-                      ]
-                        .filter(Boolean)
-                        .join('\n') || null
-                    }
+                    injectedCss={buildInjectedCss(book, format)}
                   />
                 ) : (
                   <pre className="whitespace-pre-wrap break-words px-3 py-2 text-xs leading-relaxed text-gray-800">

@@ -54,8 +54,10 @@ export default function DocsPage() {
       <section className="mt-10">
         <h2 className="border-b border-gray-200 pb-2 text-xl font-bold">3. 메뉴(목차) 구성</h2>
         <p className="mt-4 text-[15px] leading-relaxed text-gray-700">
-          도서 편집 화면의 <strong>메뉴 관리</strong> 탭에서 책의 목차를 만듭니다. 메뉴는 몇
-          단계든 중첩할 수 있습니다.
+          도서 편집 화면의 <strong>목차 관리</strong> 탭에서 책의 목차를 만듭니다. 메뉴는 몇
+          단계든 중첩할 수 있습니다. 이 탭은 <strong>목차 구성만</strong> 다루고, 본문은 다음
+          장의 <strong>콘텐츠 작성</strong> 탭에서 씁니다. 목차가 길어져도 편집기가 아래로 밀리지
+          않도록 화면을 나눠 두었습니다.
         </p>
         <ul className="mt-3 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-gray-700">
           <li>
@@ -65,6 +67,10 @@ export default function DocsPage() {
           <li>
             <Code>↑</Code> <Code>↓</Code> 같은 단계 안에서 순서 이동, <Code>→</Code> 들여쓰기(위
             메뉴의 하위로), <Code>←</Code> 내어쓰기(한 단계 위로 — 하위 메뉴도 함께 이동)
+          </li>
+          <li>
+            메뉴 이름 앞의 점으로 본문 작성 여부를 알 수 있습니다. <strong>초록색</strong>이면
+            본문이 있고, <strong>회색</strong>이면 아직 비어 있습니다.
           </li>
           <li>
             <strong>삭제</strong> 시 하위 메뉴가 있으면 함께 삭제됩니다 (경고 창에서 확인 후
@@ -89,11 +95,19 @@ export default function DocsPage() {
             보기 좋은 문서로 변환해 줍니다.
           </li>
           <li>
-            메뉴 관리 탭에서 <strong>메뉴 이름을 클릭</strong>하면 아래에 편집기가 열립니다.
+            <strong>콘텐츠 작성</strong> 탭을 열면 왼쪽에 목차, 오른쪽에 편집기가 나옵니다.
+            왼쪽에서 쓸 꼭지를 고르면 오른쪽 편집기가 그 내용으로 바뀝니다. 목차가 길어져도
+            왼쪽 목록만 스크롤되므로 편집기는 늘 같은 자리에 있습니다.
           </li>
           <li>
-            왼쪽 편집기에 내용을 입력하고 <strong>저장</strong>을 누르면 오른쪽 미리보기에 바로
-            반영됩니다.
+            내용을 입력하고 <strong>저장</strong>(또는 <Code>Ctrl+S</Code>)을 누르면 반영됩니다.
+            저장하지 않은 내용이 있으면 제목 아래에 <strong>저장되지 않음</strong>이 표시되고,
+            그 상태로 창을 닫으려 하면 브라우저가 한 번 더 물어봅니다.
+          </li>
+          <li>
+            <strong>미리보기 ↗</strong> 버튼을 누르면 <strong>새 창</strong>이 열려 지금 쓰고
+            있는 내용을 그대로 보여줍니다. 저장 전이라도 확인할 수 있고, 편집기는 화면 전체를
+            쓸 수 있습니다.
           </li>
           <li>
             Claude 등 AI가 만들어 준 <strong>아티팩트 HTML을 전체 문서 그대로</strong>(
@@ -110,9 +124,10 @@ export default function DocsPage() {
         </h2>
         <ul className="mt-4 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-gray-700">
           <li>
-            메뉴를 골라 편집할 때 본문 편집기 위에 <strong>AI 작성 도우미</strong> 패널이
-            나타납니다. <strong>관리자가 사용을 허용한 회원에게만</strong> 보이며, 보이지 않으면
-            관리자에게 요청하세요.
+            <strong>콘텐츠 작성</strong> 탭에서 꼭지를 고르면 편집기 위에{' '}
+            <strong>AI 작성 도우미</strong> 패널이 나타납니다.{' '}
+            <strong>관리자가 사용을 허용한 회원에게만</strong> 보이며, 보이지 않으면 관리자에게
+            요청하세요.
           </li>
           <li>
             <strong>새로 작성</strong>(빈 꼭지를 처음부터), <strong>이어서 쓰기</strong>,{' '}

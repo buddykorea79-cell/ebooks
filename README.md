@@ -109,12 +109,23 @@ Claude 등 AI가 만든 **아티팩트 HTML을 `<!doctype html>`부터 통째로
 
 ### 2-3. 도서 편집 (`/book/:id/edit`)
 
-세 개 탭으로 구성됩니다.
+탭으로 구성되며, 구성 방식(2-2)에 따라 탭 구성이 달라집니다.
+
+| 구성 방식 | 탭 |
+|-----------|-----|
+| 메뉴 구성 (①②) | 기본정보 · **목차 관리** · **콘텐츠 작성** · CSS |
+| 단일 파일 (③④) | 기본정보 · 파일 업로드 · CSS |
 
 - **기본정보** — 제목·분류·유형·설명·공개 여부, 구성 방식(2-2), 표지 이미지.
   표지는 **이미지 파일 업로드**와 **SVG 코드 직접 붙여넣기** 두 가지를 지원하며,
   SVG는 붙여넣는 즉시 미리보기가 보입니다.
-- **메뉴 관리 / 파일 업로드** — 구성 방식에 따라 탭이 바뀝니다(2-2의 ①② 또는 ③④).
+- **목차 관리** — 메뉴 추가·이름 변경·순서 이동·들여쓰기·삭제만 합니다.
+  각 메뉴 앞의 점으로 본문 작성 여부(초록=작성됨, 회색=비어 있음)를 알 수 있습니다.
+- **콘텐츠 작성** — 본문 쓰기 전용. 왼쪽에서 꼭지를 고르고 오른쪽에서 씁니다.
+  **목차가 길어져도 왼쪽 목록만 스크롤**되므로 편집기가 아래로 밀리지 않습니다.
+  `Ctrl+S`로 저장하고, **미리보기 ↗** 버튼으로 지금 쓰고 있는 내용을 새 창에서 봅니다.
+  저장하지 않은 채 창을 닫으려 하면 브라우저가 확인을 묻습니다.
+- **파일 업로드** — 단일 파일 모드 전용(2-2의 ③④).
 - **CSS** — 문서 전용 스타일. 뷰어 화면(사이드바·제목 영역)에 적용되고,
   "콘텐츠에도 적용"을 켜면 본문에도 함께 적용됩니다.
 
@@ -325,11 +336,12 @@ src/
 ├── components/
 │   ├── AiAssistPanel.tsx AI 작성 도우미 패널 (생성 → 미리보기 → 반영/이어붙이기)
 │   ├── BookForm.tsx      도서 생성·수정 공용 폼 (구성 방식·본문 형식 선택 포함)
+│   ├── ContentEditorTab.tsx 본문 작성 탭 (꼭지 선택 사이드바 + 편집기 + Ctrl+S)
 │   ├── CoverUploader.tsx 표지 UI — 파일 업로드 / SVG 코드 입력 전환
 │   ├── CssEditorTab.tsx  CSS 편집 탭 (CodeMirror)
 │   ├── HtmlViewer.tsx    iframe srcDoc + sandbox 렌더러 (높이 자동 조절 postMessage)
 │   ├── Layout.tsx        헤더/네비 공통 레이아웃 (검색창, 관리자 링크는 is_admin일 때만)
-│   ├── MenuTreeEditor.tsx 메뉴 트리 편집 UI (작성 방식 ①②)
+│   ├── MenuTreeEditor.tsx 목차 트리 관리 UI — 순서·단계만 (본문은 ContentEditorTab)
 │   ├── SingleContentTab.tsx 단일 파일 업로드 UI (작성 방식 ③④)
 │   ├── RequireAuth.tsx   로그인 가드
 │   ├── Sidebar.tsx       뷰어 목차 사이드바 (모바일 드로어)
@@ -339,6 +351,7 @@ src/
 ├── lib/
 │   ├── markdown.ts       마크다운 → HTML 변환, H1·H2 섹션 분할(splitMarkdownSections)
 │   ├── menuTree.ts       메뉴 트리 순수 계산 (이동/들여쓰기 → sort_order 정규화)
+│   ├── preview.ts        새 창 미리보기 (sandbox iframe으로 격리) + 주입 CSS 조립
 │   └── supabase.ts       클라이언트 생성, env 확인
 ├── pages/
 │   ├── AdminPage.tsx     관리자: 분류/유형/회원/기능 설정
@@ -359,7 +372,9 @@ supabase/                 SQL 마이그레이션 (실행 순서는 3-1 표 참�
 - **fail-soft**: 새 테이블(profiles, book_types, site_settings 등)이 아직 생성되지 않아도
   앱이 죽지 않고 기본값으로 동작하도록 호출부에서 예외를 흡수
 - **코드 분할**: 편집/뷰어/Docs/관리자 페이지는 `lazy()` 지연 로딩, CodeMirror는 별도 청크
-- **뷰어 보안**: 사용자 HTML은 iframe `sandbox="allow-scripts"`로 격리 렌더링
+- **뷰어 보안**: 사용자 HTML은 iframe `sandbox="allow-scripts"`로 격리 렌더링.
+  새 창 미리보기도 마찬가지로, 팝업 문서에 직접 쓰지 않고 그 안의 sandbox iframe에 넣는다
+  (같은 출처에 직접 쓰면 붙여넣은 `<script>`가 로그인 토큰에 접근할 수 있다)
 - **표지 SVG 보안**: 붙여넣은 SVG는 `DOMParser`로 파싱해 `<script>`·`<foreignObject>`,
   `on*` 이벤트 핸들러, `javascript:`·외부 리소스 참조를 제거한 뒤 업로드.
   표지는 항상 `<img>`로만 렌더링하지만, Storage 공개 URL을 직접 열었을 때도 안전하도록 정제한다
