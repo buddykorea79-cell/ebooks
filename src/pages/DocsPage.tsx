@@ -105,7 +105,41 @@ export default function DocsPage() {
       </section>
 
       <section className="mt-10">
-        <h2 className="border-b border-gray-200 pb-2 text-xl font-bold">5. 디자인 (CSS)</h2>
+        <h2 className="border-b border-gray-200 pb-2 text-xl font-bold">
+          5. AI로 내용 작성하기 ✨
+        </h2>
+        <ul className="mt-4 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-gray-700">
+          <li>
+            메뉴를 골라 편집할 때 본문 편집기 위에 <strong>AI 작성 도우미</strong> 패널이
+            나타납니다. <strong>관리자가 사용을 허용한 회원에게만</strong> 보이며, 보이지 않으면
+            관리자에게 요청하세요.
+          </li>
+          <li>
+            <strong>새로 작성</strong>(빈 꼭지를 처음부터), <strong>이어서 쓰기</strong>,{' '}
+            <strong>다듬기</strong>, <strong>자세히</strong>, <strong>요약</strong>,{' '}
+            <strong>직접 지시</strong> 중에서 고르고 지시문을 적은 뒤 <strong>생성</strong>을
+            누릅니다.
+          </li>
+          <li>
+            결과는 <strong>원본</strong>과 <strong>미리보기</strong>로 확인할 수 있습니다. 도서의
+            본문 형식(HTML·마크다운)에 맞춰 생성되므로 그대로 쓸 수 있습니다.
+          </li>
+          <li>
+            마음에 들면 <strong>반영 (본문 교체)</strong> 또는{' '}
+            <strong>본문 끝에 이어붙이기</strong>를 누릅니다. 이때 내용은{' '}
+            <strong>편집기에만 들어가고 아직 저장되지 않습니다.</strong> 직접 손질한 뒤{' '}
+            <strong>저장</strong>을 눌러야 최종 반영됩니다 — 저장 전이라면 언제든 되돌릴 수
+            있습니다.
+          </li>
+          <li>
+            결과가 길어서 끝이 잘렸다는 안내가 뜨면, 반영한 다음{' '}
+            <strong>이어서 쓰기</strong>로 나머지를 채우면 됩니다.
+          </li>
+        </ul>
+      </section>
+
+      <section className="mt-10">
+        <h2 className="border-b border-gray-200 pb-2 text-xl font-bold">6. 디자인 (CSS)</h2>
         <ul className="mt-4 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-gray-700">
           <li>
             <strong>CSS</strong> 탭에서 도서 전용 스타일을 입력하면 뷰어의 셸(사이드바·제목
@@ -119,7 +153,7 @@ export default function DocsPage() {
       </section>
 
       <section className="mt-10">
-        <h2 className="border-b border-gray-200 pb-2 text-xl font-bold">6. 공개와 공유</h2>
+        <h2 className="border-b border-gray-200 pb-2 text-xl font-bold">7. 공개와 공유</h2>
         <ul className="mt-4 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-gray-700">
           <li>
             <strong>기본정보</strong> 탭에서 <strong>공개</strong>를 체크하고 저장하면 홈 목록에

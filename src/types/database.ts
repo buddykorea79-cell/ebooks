@@ -25,7 +25,18 @@ export interface Profile {
   nickname: string
   /** admin.sql 실행 전에는 컬럼이 없어 undefined */
   is_admin?: boolean
+  /** AI 작성 도우미 사용 허용 여부. ai-assist.sql 실행 전에는 컬럼이 없어 undefined → 미허용 */
+  ai_enabled?: boolean
   created_at: string
+}
+
+/** 회원별 AI 사용량 (ai_usage_summary 뷰) */
+export interface AiUsageSummary {
+  user_id: string
+  request_count: number
+  /** 누적 원화 비용 (BizRouter usage.cost 합계) */
+  total_cost: number
+  last_used_at: string | null
 }
 
 /**

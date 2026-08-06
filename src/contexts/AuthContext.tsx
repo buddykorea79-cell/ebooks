@@ -10,6 +10,8 @@ interface AuthContextValue {
   nickname: string | null
   /** 관리자 여부. null이면 아직 판정 전(프로필 조회 중) */
   isAdmin: boolean | null
+  /** AI 작성 도우미 사용 허용 여부 (관리자가 회원별로 지정) */
+  aiEnabled: boolean
   /** 초기 세션 복원이 끝나기 전까지 true. 라우트 가드는 이 값이 false일 때만 판정한다. */
   loading: boolean
 }
@@ -20,14 +22,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [nickname, setNickname] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
+  const [aiEnabled, setAiEnabled] = useState(false)
   const [loading, setLoading] = useState(true)
 
-  // 닉네임(메타데이터 → profiles 순)과 관리자 여부(profiles.is_admin) 판정
+  // 닉네임(메타데이터 → profiles 순), 관리자 여부(profiles.is_admin),
+  // AI 사용 허용 여부(profiles.ai_enabled) 판정
   useEffect(() => {
     const user = session?.user
     if (!user) {
       setNickname(null)
       setIsAdmin(false)
+      setAiEnabled(false)
       return
     }
     const meta = user.user_metadata as Record<string, unknown> | undefined
@@ -40,10 +45,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (cancelled) return
         if (profile && !metaNickname) setNickname(profile.nickname)
         setIsAdmin(profile?.is_admin === true)
+        // ai-assist.sql 실행 전에는 컬럼이 없어 undefined → 미허용
+        setAiEnabled(profile?.ai_enabled === true)
       })
       .catch(() => {
         // profiles 테이블이 아직 없어도 앱은 동작해야 함 (이메일로 대체 표시)
-        if (!cancelled) setIsAdmin(false)
+        if (!cancelled) {
+          setIsAdmin(false)
+          setAiEnabled(false)
+        }
       })
     return () => {
       cancelled = true
@@ -76,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, user: session?.user ?? null, nickname, isAdmin, loading }}
+      value={{ session, user: session?.user ?? null, nickname, isAdmin, aiEnabled, loading }}
     >
       {children}
     </AuthContext.Provider>

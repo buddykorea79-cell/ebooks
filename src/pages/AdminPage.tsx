@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { BookTypeRow, Category, Profile } from '../types/database'
+import type { AiUsageSummary, BookTypeRow, Category, Profile } from '../types/database'
 import { HOME_LAYOUT_LABELS } from '../types/database'
-import { fetchProfiles, setUserAdmin } from '../api/profiles'
+import { fetchAiUsageSummary, fetchProfiles, setUserAdmin, setUserAiEnabled } from '../api/profiles'
 import { useAuth } from '../contexts/AuthContext'
 import {
   createCategory,
@@ -32,6 +32,9 @@ function errMsg(err: unknown): string {
   }
   if (msg.includes('row-level security')) {
     return '권한이 없습니다. 관리자 계정인지, admin.sql을 실행했는지 확인하세요.'
+  }
+  if (msg.includes('set_user_ai_enabled')) {
+    return 'AI 사용 권한 변경 기능을 찾을 수 없습니다. supabase/ai-assist.sql을 SQL Editor에서 실행하세요.'
   }
   if (msg.includes('set_user_admin') || msg.includes('Could not find the function')) {
     return '회원 권한 변경 기능을 찾을 수 없습니다. supabase/admin-members.sql을 SQL Editor에서 실행하세요.'
@@ -355,13 +358,17 @@ function TypeManager() {
 
 function MemberManager({ myId }: { myId: string | null }) {
   const [members, setMembers] = useState<Profile[] | null>(null)
+  const [aiUsage, setAiUsage] = useState<Record<string, AiUsageSummary>>({})
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
-      setMembers(await fetchProfiles())
+      // 사용량 조회는 ai-assist.sql 실행 전이면 빈 맵을 돌려준다 (fail-soft)
+      const [rows, usage] = await Promise.all([fetchProfiles(), fetchAiUsageSummary()])
+      setMembers(rows)
+      setAiUsage(usage)
     } catch (err) {
       setError(`회원 목록을 불러오지 못했습니다: ${errMsg(err)}`)
     }
@@ -390,9 +397,30 @@ function MemberManager({ myId }: { myId: string | null }) {
     }
   }
 
+  async function handleToggleAi(member: Profile) {
+    const enable = member.ai_enabled !== true
+    const message = enable
+      ? `'${member.nickname}' 님에게 AI 작성 도우미 사용을 허용할까요?\n도서 편집 화면에서 AI로 본문을 작성·수정할 수 있게 되며, 사용한 만큼 BizRouter 요금이 발생합니다.`
+      : `'${member.nickname}' 님의 AI 작성 도우미 사용을 차단할까요?`
+    if (!window.confirm(message)) return
+
+    setBusyId(member.id)
+    setError(null)
+    try {
+      await setUserAiEnabled(member.id, enable)
+      await load()
+    } catch (err) {
+      setError(errMsg(err))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   const keyword = query.trim().toLowerCase()
   const filtered = (members ?? []).filter((m) => m.nickname.toLowerCase().includes(keyword))
   const adminCount = (members ?? []).filter((m) => m.is_admin).length
+  const aiCount = (members ?? []).filter((m) => m.ai_enabled).length
+  const totalAiCost = Object.values(aiUsage).reduce((sum, u) => sum + u.total_cost, 0)
 
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4">
@@ -400,6 +428,11 @@ function MemberManager({ myId }: { myId: string | null }) {
       <p className="mt-1 text-xs text-gray-500">
         최초로 가입한 회원이 자동으로 관리자가 됩니다. 여기서 다른 회원에게 관리자 권한을
         부여하거나 해제할 수 있습니다. (본인 권한은 해제할 수 없습니다)
+      </p>
+      <p className="mt-1 text-xs text-gray-500">
+        <strong>AI 허용</strong>을 켜면 그 회원은 도서 편집 화면에서 AI 작성 도우미를 쓸 수
+        있습니다. 기본값은 차단이며, 사용한 만큼 BizRouter 요금이 발생하므로 필요한 회원에게만
+        열어 주세요.
       </p>
 
       {error && (
@@ -420,7 +453,9 @@ function MemberManager({ myId }: { myId: string | null }) {
               className={`${inputClass} min-w-0 flex-1`}
             />
             <span className="text-xs text-gray-400">
-              전체 {members.length}명 · 관리자 {adminCount}명
+              전체 {members.length}명 · 관리자 {adminCount}명 · AI 허용 {aiCount}명
+              {totalAiCost > 0 &&
+                ` · AI 누적 ₩${totalAiCost.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}`}
             </span>
           </div>
 
@@ -433,8 +468,10 @@ function MemberManager({ myId }: { myId: string | null }) {
               {filtered.map((member) => {
                 const isMe = member.id === myId
                 const isAdminMember = member.is_admin === true
+                const isAiMember = member.ai_enabled === true
+                const usage = aiUsage[member.id]
                 return (
-                  <li key={member.id} className="flex items-center gap-2">
+                  <li key={member.id} className="flex flex-wrap items-center gap-2">
                     <div className="min-w-0 flex-1">
                       <span className="text-sm font-medium">{member.nickname}</span>
                       {isMe && <span className="ml-1 text-xs text-gray-400">(나)</span>}
@@ -443,10 +480,30 @@ function MemberManager({ myId }: { myId: string | null }) {
                           관리자
                         </span>
                       )}
+                      {isAiMember && (
+                        <span className="ml-1.5 inline-block rounded bg-violet-100 px-1.5 py-0.5 text-xs font-medium text-violet-700">
+                          AI 허용
+                        </span>
+                      )}
                       <span className="block text-xs text-gray-400">
                         가입 {member.created_at.slice(0, 10)}
+                        {usage &&
+                          usage.request_count > 0 &&
+                          ` · AI ${usage.request_count}회 · ₩${usage.total_cost.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}`}
                       </span>
                     </div>
+                    <button
+                      onClick={() => handleToggleAi(member)}
+                      disabled={busyId !== null}
+                      title="AI 작성 도우미 사용 허용 여부"
+                      className={`${
+                        isAiMember
+                          ? 'rounded border border-violet-300 px-2 py-1 text-xs text-violet-700 hover:bg-violet-50'
+                          : smallBtn
+                      } shrink-0 disabled:opacity-40`}
+                    >
+                      {busyId === member.id ? '처리 중…' : isAiMember ? 'AI 차단' : 'AI 허용'}
+                    </button>
                     <button
                       onClick={() => handleToggle(member)}
                       disabled={busyId !== null || (isAdminMember && isMe)}

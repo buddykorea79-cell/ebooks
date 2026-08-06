@@ -41,6 +41,13 @@ VITE_SUPABASE_URL=https://<프로젝트>.supabase.co
 VITE_SUPABASE_ANON_KEY=<anon key>
 ```
 
+AI 작성 도우미(2-7)를 쓰려면 BizRouter 키를 추가합니다. **`VITE_` 접두사를 붙이면 안 됩니다** —
+붙이면 브라우저 번들에 키가 그대로 노출됩니다.
+
+```
+BIZROUTER_API_KEY=sk-br-v1-...
+```
+
 ---
 
 ## 2. 주요 기능
@@ -145,10 +152,70 @@ Claude 등 AI가 만든 **아티팩트 HTML을 `<!doctype html>`부터 통째로
 | 분류 | 추가 · 이름 변경 · 순서 이동 · 삭제 |
 | 유형 | 추가 · 이름 변경 · 순서 이동 · 삭제 (지침 등 자유롭게) |
 | 회원 | 닉네임 검색, 관리자 지정/해제 (본인 해제는 불가 — 잠김 방지) |
+| AI 사용 권한 | 회원별로 AI 작성 도우미 허용 / 차단 + 회원별 사용 횟수·누적 요금 확인 |
 | 추천 기능 | 켜기 / 끄기 |
 | 홈 목록 구성 | 최신순 / 추천순 / '추천 도서 + 최신 도서' 2단 (2단일 때 추천 개수 지정) |
 
 - **Docs**(`/docs`) — 이용자를 위한 사용법 안내 페이지
+
+### 2-7. AI 작성 도우미 ✨
+
+메뉴 구성(2-2의 ①②) 문서를 편집할 때, 본문 편집기 위에 AI 패널이 열립니다.
+**관리자가 허용한 회원에게만 보입니다.**
+
+작업은 여섯 가지입니다.
+
+| 작업 | 하는 일 | 필요한 것 |
+|------|---------|-----------|
+| 새로 작성 | 지시문만 보고 이 꼭지의 본문을 처음부터 씀 | 지시문 |
+| 이어서 쓰기 | 지금 본문 뒤에 이어질 내용을 씀 | 본문 |
+| 다듬기 | 내용은 두고 문장과 흐름만 개선 | 본문 |
+| 자세히 | 설명·예시를 보태 확장 | 본문 |
+| 요약 | 핵심만 남기고 줄임 | 본문 |
+| 직접 지시 | 원하는 작업을 적으면 그대로 수행 | 본문 + 지시문 |
+
+**결과는 곧바로 저장되지 않습니다.** 생성된 내용은 원본/미리보기로 확인한 뒤
+
+- **반영 (본문 교체)** — 편집기 본문을 결과로 바꿉니다
+- **본문 끝에 이어붙이기** — 기존 본문 뒤에 덧붙입니다
+
+를 누르면 **편집기 초안에만** 들어갑니다. 최종 반영은 기존과 똑같이 **'저장'** 버튼이 합니다.
+그래서 저장 전이라면 언제든 되돌릴 수 있습니다.
+
+문서 형식(HTML/마크다운)에 맞는 결과가 나오도록 서버가 출력 규칙을 지정하며,
+결과가 코드펜스로 감싸여 오면 벗겨서 돌려줍니다.
+
+#### 동작 구조 — 키는 서버에만
+
+이 앱은 클라이언트 SPA라서 API 키를 브라우저에 두면 누구나 꺼내 쓸 수 있습니다.
+그래서 호출은 반드시 서버를 거칩니다.
+
+```
+브라우저  ──POST /api/ai (Supabase 액세스 토큰)──▶  서버 프록시
+                                                    ├ 토큰 검증 (로그인 확인)
+                                                    ├ profiles.ai_enabled 확인 (권한)
+                                                    ├ BizRouter 호출 (여기서만 API 키 사용)
+                                                    └ ai_usage에 사용량 기록
+```
+
+| 파일 | 역할 |
+|------|------|
+| `api/_core.ts` | 인증·권한 검사, 프롬프트 구성, BizRouter 호출, 오류 한국어 변환, 사용량 기록 |
+| `api/ai.ts` | Vercel 서버리스 함수 어댑터 (운영) |
+| `vite.config.ts` | `npm run dev`용 `/api/ai` 미들웨어 (로컬) — 같은 `_core.ts`를 호출 |
+
+`ai_enabled` 확인을 **서버에서** 하므로, 화면을 우회해 `/api/ai`를 직접 호출해도 막힙니다.
+
+| 항목 | 값 |
+|------|-----|
+| 엔드포인트 | `POST https://api.bizrouter.ai/v1/chat/completions` (OpenAI 호환) |
+| 모델 | `openai/gpt-5.6-luna` (`BIZROUTER_MODEL`로 교체 가능) |
+| 문서 | https://bizrouter.ai/docs |
+| 요금 | 응답의 `usage.cost`(원화)를 그대로 `ai_usage`에 적재 → 관리자 화면에 표시 |
+
+> **Vercel 환경변수**: 프로젝트 Settings → Environment Variables에 `BIZROUTER_API_KEY`를
+> 추가하고 재배포해야 운영에서 동작합니다. 함수 최대 실행 시간은 `vercel.json`에서 60초로
+> 잡아 두었습니다.
 
 ---
 
@@ -169,6 +236,7 @@ Claude 등 AI가 만든 **아티팩트 HTML을 `<!doctype html>`부터 통째로
 | 6 | `single-file.sql` | `books.source_mode`('menu' \| 'single')와 `books.single_content` 추가 — 단일 파일 업로드 모드 |
 | 7 | `home-layout.sql` | `site_settings.home_layout`('latest' \| 'recommended' \| 'both')과 `home_featured_count` 추가 — 홈 목록 구성 |
 | 8 | `admin-members.sql` | 최초 가입자 자동 관리자(가입 트리거 교체), 관리자 지정/해제 함수(`set_user_admin`), **권한 상승 차단**(profiles 컬럼 단위 UPDATE 권한) |
+| 9 | `ai-assist.sql` | AI 작성 도우미 — `profiles.ai_enabled` 컬럼, 허용/차단 함수(`set_user_ai_enabled`), 사용량 로그(`ai_usage`)와 회원별 요약 뷰(`ai_usage_summary`) |
 
 > **관리자 계정은 어떻게 정해지나요?**
 > `admin-members.sql`을 실행하면 **최초로 가입한 회원이 자동으로 관리자**가 되고,
@@ -193,10 +261,13 @@ books                 도서 (owner_id, category_id, type→book_types FK, title
                       is_published, created_at, updated_at)
 book_menus            메뉴(목차) 트리 (book_id, parent_id 자기참조, title,
                       sort_order, html_content)
-profiles              회원 프로필 (id=auth.users FK, nickname, is_admin)
+profiles              회원 프로필 (id=auth.users FK, nickname, is_admin, ai_enabled)
 site_settings         단일 행 사이트 설정 (id=1, recommend_enabled,
                       home_layout, home_featured_count)
 book_recommendations  추천 (book_id, user_id 복합 PK)
+ai_usage              AI 사용량 로그 (user_id, book_id, action, model,
+                      prompt_tokens, completion_tokens, cost(원화), created_at)
+ai_usage_summary      회원별 사용량 요약 뷰 (security_invoker)
 ```
 
 ### 3-3. RLS(Row Level Security) 요약
@@ -207,9 +278,10 @@ book_recommendations  추천 (book_id, user_id 복합 PK)
 | book_types | 누구나 | 관리자만 |
 | books | 공개(is_published) 또는 소유자 | 소유자만 |
 | book_menus | 소속 도서 규칙을 따름 | 소속 도서 소유자만 |
-| profiles | 누구나 (닉네임 공개) | 본인의 **nickname 컬럼만** 수정 (생성은 가입 트리거). `is_admin` 변경은 관리자만, `set_user_admin()` 함수를 통해서만 |
+| profiles | 누구나 (닉네임 공개) | 본인의 **nickname 컬럼만** 수정 (생성은 가입 트리거). `is_admin`·`ai_enabled` 변경은 관리자만, `set_user_admin()` / `set_user_ai_enabled()` 함수를 통해서만 |
 | site_settings | 누구나 | 관리자만 |
 | book_recommendations | 누구나 (추천 수 표시) | 로그인 회원이 본인 것만 추가/삭제 |
+| ai_usage | 본인 것 + 관리자는 전체 | 로그인 회원이 본인 것만 추가 (서버 프록시가 사용자 토큰으로 기록) |
 
 `is_admin()`은 `security definer` 함수라 RLS 정책 안에서 재귀 없이 profiles를 조회합니다.
 
@@ -229,19 +301,25 @@ book_recommendations  추천 (book_id, user_id 복합 PK)
 ## 4. 프로젝트 구조
 
 ```
+api/                      서버 사이드 (브라우저에 노출되면 안 되는 것만)
+├── _core.ts              BizRouter 연동 코어 — 인증·권한·프롬프트·오류 변환·사용량 기록
+└── ai.ts                 POST /api/ai — Vercel 서버리스 함수 어댑터
 src/
 ├── api/                  Supabase 호출 레이어 (화면과 분리)
+│   ├── ai.ts             /api/ai 호출부 + 작업(액션) 정의
 │   ├── auth.ts           로그인/가입/로그아웃/비밀번호 재설정
 │   ├── books.ts          도서 CRUD
 │   ├── bookTypes.ts      유형 CRUD + useBookTypes 훅(모듈 캐시, 없으면 기본 3종 fail-soft)
 │   ├── categories.ts     분류 CRUD
 │   ├── covers.ts         표지 업로드 (Storage) + SVG 코드 정제(sanitizeSvg)
 │   ├── menus.ts          메뉴 CRUD
-│   ├── profiles.ts       프로필/닉네임 조회, 회원 목록, 관리자 지정(set_user_admin RPC)
+│   ├── profiles.ts       프로필/닉네임 조회, 회원 목록, 관리자 지정(set_user_admin RPC),
+│   │                     AI 허용(set_user_ai_enabled RPC), AI 사용량 요약
 │   ├── recommendations.ts 추천 추가/삭제/집계
 │   ├── search.ts         도서·본문 검색 (ilike, 와일드카드 이스케이프)
 │   └── settings.ts       사이트 설정 조회/변경
 ├── components/
+│   ├── AiAssistPanel.tsx AI 작성 도우미 패널 (생성 → 미리보기 → 반영/이어붙이기)
 │   ├── BookForm.tsx      도서 생성·수정 공용 폼 (구성 방식·본문 형식 선택 포함)
 │   ├── CoverUploader.tsx 표지 UI — 파일 업로드 / SVG 코드 입력 전환
 │   ├── CssEditorTab.tsx  CSS 편집 탭 (CodeMirror)
@@ -253,7 +331,7 @@ src/
 │   ├── Sidebar.tsx       뷰어 목차 사이드바 (모바일 드로어)
 │   └── TypeBadge.tsx     유형 배지 (동적 유형 + 색상 팔레트 순환)
 ├── contexts/
-│   └── AuthContext.tsx   세션/닉네임/isAdmin 전역 상태
+│   └── AuthContext.tsx   세션/닉네임/isAdmin/aiEnabled 전역 상태
 ├── lib/
 │   ├── markdown.ts       마크다운 → HTML 변환, H1·H2 섹션 분할(splitMarkdownSections)
 │   ├── menuTree.ts       메뉴 트리 순수 계산 (이동/들여쓰기 → sort_order 정규화)
@@ -281,6 +359,9 @@ supabase/                 SQL 마이그레이션 (실행 순서는 3-1 표 참�
 - **표지 SVG 보안**: 붙여넣은 SVG는 `DOMParser`로 파싱해 `<script>`·`<foreignObject>`,
   `on*` 이벤트 핸들러, `javascript:`·외부 리소스 참조를 제거한 뒤 업로드.
   표지는 항상 `<img>`로만 렌더링하지만, Storage 공개 URL을 직접 열었을 때도 안전하도록 정제한다
+- **AI 키 격리**: BizRouter API 키는 `api/` 아래 서버 코드에서만 읽는다. `VITE_` 접두사가 아니라
+  클라이언트 번들에 들어갈 수 없고, 사용 권한(`ai_enabled`)도 서버에서 확인하므로 화면을
+  우회한 직접 호출이 통하지 않는다
 
 ---
 

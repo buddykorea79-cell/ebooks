@@ -20,6 +20,8 @@ import {
   siblingsOf,
   type MenuTreeNode,
 } from '../lib/menuTree'
+import { useAuth } from '../contexts/AuthContext'
+import AiAssistPanel from './AiAssistPanel'
 import ErrorAlert from './ErrorAlert'
 import HtmlViewer from './HtmlViewer'
 
@@ -32,6 +34,7 @@ const iconBtn =
 
 export default function MenuTreeEditor({ book }: MenuTreeEditorProps) {
   const bookId = book.id
+  const { aiEnabled } = useAuth()
   const isMarkdown = (book.content_format ?? 'html') === 'markdown'
   const formatLabel = isMarkdown ? '마크다운' : 'HTML'
   const [menus, setMenus] = useState<BookMenu[] | null>(null)
@@ -347,6 +350,22 @@ export default function MenuTreeEditor({ book }: MenuTreeEditorProps) {
               </button>
             </div>
           </div>
+
+          {/* 관리자가 허용한 회원에게만 노출. 결과는 초안에만 들어가고 저장은 위 '저장' 버튼이 담당한다 */}
+          {aiEnabled && (
+            <AiAssistPanel
+              book={book}
+              sectionTitle={selectedMenu.title}
+              format={isMarkdown ? 'markdown' : 'html'}
+              content={draft}
+              onReplace={(text) => setDraft(text)}
+              onAppend={(text) =>
+                setDraft((prev) => (prev.trim() ? `${prev.replace(/\s+$/, '')}\n\n${text}` : text))
+              }
+              disabled={busy}
+            />
+          )}
+
           <div className="mt-3 grid gap-4 lg:grid-cols-2">
             <div className="overflow-hidden rounded border border-gray-300">
               <CodeMirror
