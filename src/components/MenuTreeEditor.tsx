@@ -64,6 +64,16 @@ export default function MenuTreeEditor({ book }: MenuTreeEditorProps) {
     return () => clearTimeout(t)
   }, [htmlSaved])
 
+  // 메뉴를 아직 고르지 않았으면 첫 메뉴를 자동으로 연다.
+  // 편집기와 AI 작성 도우미는 '선택된 메뉴' 블록 안에 있어서,
+  // 아무것도 고르지 않으면 화면에 나타나지 않는다.
+  useEffect(() => {
+    if (selectedId !== null || !menus || menus.length === 0) return
+    const first = buildMenuTree(menus)[0]?.menu ?? menus[0]
+    setSelectedId(first.id)
+    setDraft(first.html_content ?? '')
+  }, [menus, selectedId])
+
   const selectedMenu = selectedId && menus ? (menus.find((m) => m.id === selectedId) ?? null) : null
   const draftDirty = selectedMenu ? draft !== (selectedMenu.html_content ?? '') : false
 
@@ -304,6 +314,7 @@ export default function MenuTreeEditor({ book }: MenuTreeEditorProps) {
       <div className="flex max-w-3xl items-center justify-between">
         <p className="text-sm text-gray-500">
           메뉴 이름을 클릭하면 {formatLabel} 콘텐츠를 편집할 수 있습니다.
+          {aiEnabled && ' 편집기 바로 위에 ✨ AI 작성 도우미가 열립니다.'}
         </p>
         <button
           onClick={() => handleAdd(null)}
@@ -323,6 +334,7 @@ export default function MenuTreeEditor({ book }: MenuTreeEditorProps) {
       {menus !== null && tree.length === 0 && (
         <p className="mt-6 text-gray-500">
           아직 메뉴가 없습니다. '+ 새 메뉴' 버튼으로 첫 메뉴를 만들어 보세요.
+          {aiEnabled && ' 메뉴를 만들면 편집기와 AI 작성 도우미가 나타납니다.'}
         </p>
       )}
 

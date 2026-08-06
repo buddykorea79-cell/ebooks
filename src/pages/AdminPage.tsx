@@ -357,6 +357,8 @@ function TypeManager() {
 // ---------------------------------------------------------------
 
 function MemberManager({ myId }: { myId: string | null }) {
+  // 내 권한을 내가 바꾼 경우, 새로고침 없이 헤더·편집 화면에 반영되도록 프로필을 다시 읽는다
+  const { refreshProfile } = useAuth()
   const [members, setMembers] = useState<Profile[] | null>(null)
   const [aiUsage, setAiUsage] = useState<Record<string, AiUsageSummary>>({})
   const [query, setQuery] = useState('')
@@ -390,6 +392,7 @@ function MemberManager({ myId }: { myId: string | null }) {
     try {
       await setUserAdmin(member.id, makeAdmin)
       await load()
+      if (member.id === myId) await refreshProfile()
     } catch (err) {
       setError(errMsg(err))
     } finally {
@@ -409,6 +412,7 @@ function MemberManager({ myId }: { myId: string | null }) {
     try {
       await setUserAiEnabled(member.id, enable)
       await load()
+      if (member.id === myId) await refreshProfile()
     } catch (err) {
       setError(errMsg(err))
     } finally {
