@@ -39,6 +39,12 @@ export interface AiEnv {
   model: string
   /** GPT-5 계열 reasoning_effort. 'off'면 아예 보내지 않는다 */
   reasoningEffort: string
+  /**
+   * temperature. null이면 보내지 않는다(기본값).
+   * GPT-5 계열 추론 모델은 기본값 1 외의 temperature를 거부하므로 기본은 미전송이고,
+   * 지원하는 모델로 바꿀 때만 BIZROUTER_TEMPERATURE로 지정한다.
+   */
+  temperature: number | null
   supabaseUrl: string
   supabaseAnonKey: string
 }
@@ -203,6 +209,8 @@ const ERROR_MESSAGES: Record<string, string> = {
 interface BizRouterError {
   code?: string
   message?: string
+  /** 어떤 파라미터가 문제인지 (Provider가 알려주는 경우) */
+  param?: string
 }
 
 /** BizRouter 오류 / Provider passthrough 오류 어느 쪽이든 안전하게 읽는다 */
@@ -214,6 +222,7 @@ function readError(payload: unknown): BizRouterError {
       return {
         code: typeof o.code === 'string' ? o.code : undefined,
         message: typeof o.message === 'string' ? o.message : undefined,
+        param: typeof o.param === 'string' ? o.param : undefined,
       }
     }
     if (typeof err === 'string') return { message: err }
@@ -231,20 +240,38 @@ interface BizRouterOutcome {
   payload: unknown
 }
 
+/**
+ * 모델마다 받지 않는 조율용 파라미터가 있다.
+ * 예: GPT-5 계열 추론 모델은 temperature를 기본값(1) 외에는 거부한다.
+ *     ("Unsupported value: 'temperature' does not support 0.7 with this model")
+ * 400 응답이 아래 중 하나를 지목하면 그 파라미터만 빼고 다시 시도한다.
+ * 모두 선택 사항이라 빠져도 결과 품질에는 영향이 거의 없다.
+ */
+const TUNING_PARAMS = [
+  'temperature',
+  'reasoning_effort',
+  'max_tokens',
+  'max_completion_tokens',
+] as const
+
 async function callBizRouter(
   env: AiEnv,
   messages: { role: string; content: string }[],
   requestId: string,
-  withReasoning: boolean,
+  omit: Set<string>,
 ): Promise<BizRouterOutcome> {
-  const body: Record<string, unknown> = {
-    model: env.model,
-    messages,
-    temperature: 0.7,
-    max_tokens: MAX_OUTPUT_TOKENS,
+  const body: Record<string, unknown> = { model: env.model, messages }
+  // 추론 모델은 max_tokens 대신 max_completion_tokens를 받는다.
+  // 거부당하면 이름을 바꿔 한 번 더 시도하고, 그것도 안 되면 상한 없이 보낸다.
+  if (!omit.has('max_tokens')) body.max_tokens = MAX_OUTPUT_TOKENS
+  else if (!omit.has('max_completion_tokens')) body.max_completion_tokens = MAX_OUTPUT_TOKENS
+  // temperature는 기본적으로 보내지 않는다 (기본 모델이 GPT-5 계열이라 거부당한다).
+  // 지원하는 모델로 바꿀 때만 BIZROUTER_TEMPERATURE로 지정한다.
+  if (!omit.has('temperature') && env.temperature !== null) {
+    body.temperature = env.temperature
   }
-  // GPT-5 계열 전용 파라미터. 모델이 거부하면 호출부가 이 값을 빼고 한 번 더 시도한다.
-  if (withReasoning && env.reasoningEffort !== 'off') {
+  // GPT-5 계열 전용 파라미터
+  if (!omit.has('reasoning_effort') && env.reasoningEffort !== 'off') {
     body.reasoning_effort = env.reasoningEffort
   }
 
@@ -358,13 +385,19 @@ export async function runAi(body: AiRequestBody, token: string, env: AiEnv): Pro
 
   let outcome: BizRouterOutcome
   try {
-    outcome = await callBizRouter(env, messages, requestId, true)
-    // 모델이 reasoning_effort를 받지 않는 경우가 있어 그 값만 빼고 한 번 더 시도한다
-    if (!outcome.ok && outcome.status === 400) {
-      const message = readError(outcome.payload).message ?? ''
-      if (/reasoning/i.test(message)) {
-        outcome = await callBizRouter(env, messages, requestId, false)
-      }
+    // 모델이 거부하는 조율용 파라미터를 하나씩 빼면서 재시도한다.
+    // 400에서 지목된 것만 빼므로 최대 TUNING_PARAMS 개수만큼만 돈다.
+    const omit = new Set<string>()
+    for (;;) {
+      outcome = await callBizRouter(env, messages, requestId, omit)
+      if (outcome.ok || outcome.status !== 400) break
+
+      const { message = '', param } = readError(outcome.payload)
+      const offending = TUNING_PARAMS.find(
+        (p) => p === param || message.includes(`'${p}'`) || message.includes(`"${p}"`),
+      )
+      if (!offending || omit.has(offending)) break
+      omit.add(offending)
     }
   } catch (err) {
     const aborted = err instanceof Error && err.name === 'AbortError'
@@ -473,10 +506,12 @@ export function bearerToken(header: string | string[] | undefined): string {
 
 /** process.env에서 필요한 값만 모은다 (Supabase 값은 VITE_ 접두사도 허용) */
 export function envFrom(source: Record<string, string | undefined>): AiEnv {
+  const rawTemperature = Number(source.BIZROUTER_TEMPERATURE)
   return {
     bizrouterApiKey: source.BIZROUTER_API_KEY ?? '',
     model: source.BIZROUTER_MODEL || 'openai/gpt-5.6-luna',
     reasoningEffort: source.BIZROUTER_REASONING_EFFORT || 'low',
+    temperature: Number.isFinite(rawTemperature) && source.BIZROUTER_TEMPERATURE ? rawTemperature : null,
     supabaseUrl: source.SUPABASE_URL || source.VITE_SUPABASE_URL || '',
     supabaseAnonKey: source.SUPABASE_ANON_KEY || source.VITE_SUPABASE_ANON_KEY || '',
   }
