@@ -1,13 +1,13 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { bearerToken, envFrom, readJsonBody, runAi } from './api/_core'
+import { bearerToken, envFrom, readJsonBody, runAi } from './api/ai'
 
 /**
  * 로컬 개발용 /api/ai 엔드포인트.
- * 운영에서는 Vercel 서버리스 함수(api/ai.ts)가 같은 일을 하지만
+ * 운영에서는 api/ai.ts의 default export가 Vercel 서버리스 함수로 실행되지만
  * `vite`만 띄우면 그 함수가 없으므로 dev 서버에 직접 붙여 준다.
- * 두 경로 모두 api/_core.ts의 runAi를 호출하므로 동작이 갈리지 않는다.
+ * 두 경로 모두 같은 파일의 runAi를 호출하므로 동작이 갈리지 않는다.
  */
 function aiDevEndpoint(env: Record<string, string>): Plugin {
   return {

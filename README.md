@@ -200,11 +200,15 @@ Claude 등 AI가 만든 **아티팩트 HTML을 `<!doctype html>`부터 통째로
 
 | 파일 | 역할 |
 |------|------|
-| `api/_core.ts` | 인증·권한 검사, 프롬프트 구성, BizRouter 호출, 오류 한국어 변환, 사용량 기록 |
-| `api/ai.ts` | Vercel 서버리스 함수 어댑터 (운영) |
-| `vite.config.ts` | `npm run dev`용 `/api/ai` 미들웨어 (로컬) — 같은 `_core.ts`를 호출 |
+| `api/ai.ts` | 인증·권한 검사, 프롬프트 구성, BizRouter 호출, 오류 한국어 변환, 사용량 기록 + 맨 아래 Vercel 함수 진입점(default export) |
+| `vite.config.ts` | `npm run dev`용 `/api/ai` 미들웨어 (로컬) — 같은 파일의 `runAi`를 호출 |
 
 `ai_enabled` 확인을 **서버에서** 하므로, 화면을 우회해 `/api/ai`를 직접 호출해도 막힙니다.
+
+> ⚠️ `api/` 안의 파일에는 **상대 경로 import를 두면 안 됩니다.** `package.json`이
+> `"type": "module"`이라 Vercel에서 ESM으로 실행되는데, Node ESM은 확장자 없는 상대 import를
+> 해석하지 못해 모듈 로드 단계에서 `FUNCTION_INVOCATION_FAILED`로 죽습니다.
+> (그래서 로직과 함수 진입점을 `api/ai.ts` 한 파일에 합쳐 두었습니다)
 
 | 항목 | 값 |
 |------|-----|
@@ -302,8 +306,8 @@ ai_usage_summary      회원별 사용량 요약 뷰 (security_invoker)
 
 ```
 api/                      서버 사이드 (브라우저에 노출되면 안 되는 것만)
-├── _core.ts              BizRouter 연동 코어 — 인증·권한·프롬프트·오류 변환·사용량 기록
-└── ai.ts                 POST /api/ai — Vercel 서버리스 함수 어댑터
+└── ai.ts                 POST /api/ai — BizRouter 연동 (인증·권한·프롬프트·오류 변환·
+                          사용량 기록) + Vercel 서버리스 함수 진입점. 상대 import 금지
 src/
 ├── api/                  Supabase 호출 레이어 (화면과 분리)
 │   ├── ai.ts             /api/ai 호출부 + 작업(액션) 정의
