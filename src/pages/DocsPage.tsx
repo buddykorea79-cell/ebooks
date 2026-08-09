@@ -83,10 +83,17 @@ export default function DocsPage() {
         <h2 className="border-b border-gray-200 pb-2 text-xl font-bold">4. 콘텐츠 등록</h2>
         <ul className="mt-4 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-gray-700">
           <li>
-            기본정보 탭의 <strong>구성 방식</strong>에서 <strong>메뉴 구성</strong>(목차를 직접
-            만들고 메뉴별로 작성)과 <strong>단일 파일 업로드</strong>(완성된 HTML/MD 파일 하나)
-            중 선택할 수 있습니다. 단일 파일 모드에서 HTML 파일은 메뉴 없이 전체 화면으로
-            표시되고, 마크다운 파일은 제목(H1·H2) 기준으로 목차가 자동 생성됩니다.
+            기본정보 탭의 <strong>구성 방식</strong>에서 셋 중 하나를 고릅니다 —{' '}
+            <strong>메뉴 구성</strong>(목차를 직접 만들고 메뉴별로 작성),{' '}
+            <strong>단일 파일 업로드</strong>(완성된 HTML/MD 파일 하나),{' '}
+            <strong>PDF</strong>(PDF 한 개를 원본 그대로). 단일 파일 모드에서 HTML 파일은 메뉴
+            없이 전체 화면으로 표시되고, 마크다운 파일은 제목(H1·H2) 기준으로 목차가 자동
+            생성됩니다.
+          </li>
+          <li>
+            <strong>PDF</strong>를 고르면 <strong>PDF 파일</strong> 탭이 나옵니다. 파일을 올리면
+            그대로 도서가 되며, 뷰어에서 원본 레이아웃 그대로 보이고 내려받기 버튼도 생깁니다.
+            다만 목차·본문 편집과 본문 검색은 되지 않습니다.
           </li>
           <li>
             메뉴 구성 모드에서는 기본정보 탭의 <strong>본문 형식</strong>에서 콘텐츠를{' '}
@@ -108,6 +115,13 @@ export default function DocsPage() {
             <strong>미리보기 ↗</strong> 버튼을 누르면 <strong>새 창</strong>이 열려 지금 쓰고
             있는 내용을 그대로 보여줍니다. 저장 전이라도 확인할 수 있고, 편집기는 화면 전체를
             쓸 수 있습니다.
+          </li>
+          <li>
+            <strong>이미지</strong>는 세 가지 방법으로 넣습니다 — <strong>🖼 이미지</strong> 버튼,
+            편집기에 <strong>붙여넣기(Ctrl+V)</strong>, 편집기로{' '}
+            <strong>끌어다 놓기</strong>. 어느 쪽이든 파일이 업로드되고{' '}
+            <strong>커서 위치에</strong> 태그가 들어갑니다. PNG·JPG·GIF·WebP·AVIF를 장당 10MB까지
+            올릴 수 있고, 여러 장을 한 번에 골라도 됩니다.
           </li>
           <li>
             Claude 등 AI가 만들어 준 <strong>아티팩트 HTML을 전체 문서 그대로</strong>(

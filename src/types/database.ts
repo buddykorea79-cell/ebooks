@@ -64,8 +64,8 @@ export interface SiteSettings {
 /** 메뉴 콘텐츠(html_content)를 어떤 형식으로 작성·렌더링할지 */
 export type ContentFormat = 'html' | 'markdown'
 
-/** 도서 구성 방식: 메뉴를 직접 구성 / 완성된 파일 하나 업로드 */
-export type SourceMode = 'menu' | 'single'
+/** 도서 구성 방식: 메뉴를 직접 구성 / 완성된 HTML·MD 파일 하나 / PDF 한 개 */
+export type SourceMode = 'menu' | 'single' | 'pdf'
 
 export interface Book {
   id: string
@@ -83,6 +83,10 @@ export interface Book {
   source_mode?: SourceMode
   /** 단일 파일 모드의 원문 (HTML 또는 마크다운) */
   single_content?: string | null
+  /** PDF 모드의 파일 주소 (Cloudflare R2). pdf-mode.sql 실행 전에는 컬럼이 없어 undefined */
+  pdf_url?: string | null
+  pdf_name?: string | null
+  pdf_size?: number | null
   is_published: boolean
   created_at: string
   updated_at: string

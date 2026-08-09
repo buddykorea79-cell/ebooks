@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
-import CodeMirror from '@uiw/react-codemirror'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import CodeMirror, { EditorView, type ReactCodeMirrorRef } from '@uiw/react-codemirror'
 import { html as htmlLang } from '@codemirror/lang-html'
 import { markdown as markdownLang } from '@codemirror/lang-markdown'
 import type { Book, BookMenu } from '../types/database'
 import { updateMenu } from '../api/menus'
+import { imageMarkup, imageUploadErrorMessage, uploadContentImage } from '../api/images'
 import { buildMenuTree, type MenuTreeNode } from '../lib/menuTree'
 import { buildInjectedCss, openContentPreview } from '../lib/preview'
 import { useAuth } from '../contexts/AuthContext'
@@ -41,6 +42,10 @@ export default function ContentEditorTab({
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(0)
+
+  const editorRef = useRef<ReactCodeMirrorRef>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const selectedMenu = selectedId && menus ? (menus.find((m) => m.id === selectedId) ?? null) : null
   const dirty = selectedMenu ? draft !== (selectedMenu.html_content ?? '') : false
@@ -125,6 +130,90 @@ export default function ContentEditorTab({
     setSaved(false)
     setError(null)
   }
+
+  /** 편집기 커서 위치에 넣는다. 편집기가 아직 없으면 본문 끝에 붙인다 */
+  function insertAtCursor(text: string) {
+    const view = editorRef.current?.view
+    if (!view) {
+      setDraft((prev) => (prev ? `${prev}\n${text}\n` : `${text}\n`))
+      return
+    }
+    const { from, to } = view.state.selection.main
+    view.dispatch({
+      changes: { from, to, insert: text },
+      selection: { anchor: from + text.length },
+      scrollIntoView: true,
+    })
+    view.focus()
+  }
+
+  /**
+   * 이미지 여러 장을 올리고 커서 위치에 마크업을 넣는다.
+   * 버튼·붙여넣기·드래그앤드롭이 모두 이 함수를 탄다.
+   */
+  async function handleImageFiles(files: File[]) {
+    const images = files.filter((f) => f.type.startsWith('image/'))
+    if (images.length === 0) return
+
+    const rejected = images.map(imageUploadErrorMessage).filter((m): m is string => m !== null)
+    if (rejected.length > 0) {
+      setError(rejected.join('\n'))
+      return
+    }
+
+    setError(null)
+    setUploading(images.length)
+    try {
+      for (const file of images) {
+        const url = await uploadContentImage(book.id, file)
+        // 확장자를 뗀 파일 이름을 alt 기본값으로
+        const alt = file.name.replace(/\.[^.]+$/, '')
+        insertAtCursor(`\n${imageMarkup(url, alt, format)}\n`)
+        setUploading((n) => n - 1)
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`이미지 업로드에 실패했습니다: ${msg}`)
+    } finally {
+      setUploading(0)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  // 붙여넣기·드롭 핸들러가 항상 최신 상태를 보도록 ref로 넘긴다
+  // (extensions는 매 렌더 새로 만들면 편집기가 재설정되므로 memo로 고정한다)
+  const imageHandlerRef = useRef(handleImageFiles)
+  imageHandlerRef.current = handleImageFiles
+
+  const extensions = useMemo(
+    () => [
+      isMarkdown ? markdownLang() : htmlLang(),
+      EditorView.domEventHandlers({
+        paste(event) {
+          const files = Array.from(event.clipboardData?.files ?? []).filter((f) =>
+            f.type.startsWith('image/'),
+          )
+          if (files.length === 0) return false
+          event.preventDefault()
+          void imageHandlerRef.current(files)
+          return true
+        },
+        drop(event, view) {
+          const files = Array.from(event.dataTransfer?.files ?? []).filter((f) =>
+            f.type.startsWith('image/'),
+          )
+          if (files.length === 0) return false
+          event.preventDefault()
+          // 떨어뜨린 위치로 커서를 옮긴 뒤 넣는다
+          const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+          if (pos !== null) view.dispatch({ selection: { anchor: pos } })
+          void imageHandlerRef.current(files)
+          return true
+        },
+      }),
+    ],
+    [isMarkdown],
+  )
 
   function handlePreview() {
     if (!selectedMenu) return
@@ -222,6 +311,22 @@ export default function ContentEditorTab({
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/gif,image/webp,image/avif"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => void handleImageFiles(Array.from(e.target.files ?? []))}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading > 0}
+                  title="이미지를 올려 커서 위치에 넣습니다"
+                  className="rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50"
+                >
+                  {uploading > 0 ? `올리는 중… ${uploading}장` : '🖼 이미지'}
+                </button>
                 <button
                   onClick={handlePreview}
                   className="rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
@@ -262,9 +367,10 @@ export default function ContentEditorTab({
 
             <div className="mt-4 overflow-hidden rounded-lg border border-gray-300 focus-within:border-brand-400">
               <CodeMirror
+                ref={editorRef}
                 value={draft}
                 height="620px"
-                extensions={[isMarkdown ? markdownLang() : htmlLang()]}
+                extensions={extensions}
                 onChange={(value) => setDraft(value)}
                 placeholder={
                   isMarkdown
@@ -274,8 +380,10 @@ export default function ContentEditorTab({
               />
             </div>
             <p className="mt-2 text-xs text-gray-400">
-              Ctrl+S로 저장할 수 있습니다. '미리보기 ↗'는 지금 편집 중인 내용을 새 창에서
-              보여줍니다.
+              Ctrl+S로 저장할 수 있습니다. 이미지는 <strong className="font-medium">🖼 이미지</strong>{' '}
+              버튼 외에 편집기에 <strong className="font-medium">붙여넣거나(Ctrl+V)</strong>{' '}
+              <strong className="font-medium">끌어다 놓아도</strong> 올라갑니다. '미리보기 ↗'는 지금
+              편집 중인 내용을 새 창에서 보여줍니다.
             </p>
           </>
         ) : (

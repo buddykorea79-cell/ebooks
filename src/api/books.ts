@@ -22,11 +22,21 @@ export interface BookPatch {
   content_format?: ContentFormat
   source_mode?: SourceMode
   single_content?: string | null
+  pdf_url?: string | null
+  pdf_name?: string | null
+  pdf_size?: number | null
   is_published?: boolean
 }
 
-/** 마이그레이션(content-format.sql, single-file.sql) 전 DB에는 없는 컬럼들 */
-const OPTIONAL_BOOK_COLUMNS = ['content_format', 'source_mode', 'single_content'] as const
+/** 마이그레이션(content-format.sql, single-file.sql, pdf-mode.sql) 전 DB에는 없는 컬럼들 */
+const OPTIONAL_BOOK_COLUMNS = [
+  'content_format',
+  'source_mode',
+  'single_content',
+  'pdf_url',
+  'pdf_name',
+  'pdf_size',
+] as const
 
 /**
  * 컬럼 누락 에러면 신규 컬럼만 뺀 재시도용 행을 돌려준다.

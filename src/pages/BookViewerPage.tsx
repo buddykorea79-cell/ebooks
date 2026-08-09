@@ -20,6 +20,7 @@ export default function BookViewerPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const isSingle = book !== null && (book.source_mode ?? 'menu') === 'single'
+  const isPdf = book !== null && book.source_mode === 'pdf'
   const isMarkdown = book !== null && (book.content_format ?? 'html') === 'markdown'
   // 단일 HTML 파일: 메뉴 없이 전체 화면으로 렌더링
   const isSingleHtml = isSingle && !isMarkdown
@@ -59,16 +60,16 @@ export default function BookViewerPage() {
 
   const effectiveMenus = virtualMenus ?? menus
 
-  // menuId 없이 들어오면 트리상 첫 메뉴로 이동 (단일 HTML 모드는 메뉴가 없으므로 제외)
+  // menuId 없이 들어오면 트리상 첫 메뉴로 이동 (메뉴가 없는 모드는 제외)
   useEffect(() => {
-    if (isSingleHtml) return
+    if (isSingleHtml || isPdf) return
     if (!menuId && bookId && effectiveMenus && effectiveMenus.length > 0) {
       const tree = buildMenuTree(effectiveMenus)
       if (tree.length > 0) {
         navigate(`/book/${bookId}/${tree[0].menu.id}`, { replace: true })
       }
     }
-  }, [menuId, bookId, effectiveMenus, isSingleHtml, navigate])
+  }, [menuId, bookId, effectiveMenus, isSingleHtml, isPdf, navigate])
 
   if (loading) {
     return (
@@ -89,6 +90,53 @@ export default function BookViewerPage() {
             ← 홈으로
           </Link>
         </div>
+      </div>
+    )
+  }
+
+  // ---------------------------------------------------------------
+  // PDF 모드: 브라우저 기본 PDF 뷰어에 맡기고 화면 전체를 준다.
+  // HtmlViewer(sandbox iframe) 안에 넣으면 sandbox가 중첩 전파돼 표시가 막힐 수 있고,
+  // 우리 R2에 있는 신뢰된 파일이라 격리할 이유도 없다.
+  // ---------------------------------------------------------------
+  if (isPdf) {
+    return (
+      <div className="flex h-screen flex-col bg-gray-50 text-gray-900">
+        {book.custom_css && <style>{book.custom_css}</style>}
+        <div className="flex shrink-0 items-center gap-3 border-b border-gray-200 bg-white px-4 py-2.5">
+          <Link
+            to="/"
+            className="shrink-0 rounded border border-gray-300 px-2.5 py-1 text-sm text-gray-700 hover:bg-gray-100"
+          >
+            ← 홈
+          </Link>
+          <TypeBadge type={book.type} />
+          {!book.is_published && (
+            <span className="inline-block shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-500">
+              비공개
+            </span>
+          )}
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold">{book.title}</span>
+          {book.pdf_url && (
+            <a
+              href={book.pdf_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 rounded border border-gray-300 px-2.5 py-1 text-sm text-gray-700 hover:bg-gray-100"
+            >
+              내려받기 ↓
+            </a>
+          )}
+        </div>
+        {book.pdf_url ? (
+          <iframe
+            src={book.pdf_url}
+            title={`${book.title} PDF`}
+            className="min-h-0 flex-1 w-full border-0 bg-gray-100"
+          />
+        ) : (
+          <p className="px-6 py-10 text-gray-500">아직 업로드된 PDF가 없습니다.</p>
+        )}
       </div>
     )
   }

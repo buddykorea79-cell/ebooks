@@ -11,6 +11,7 @@ import CoverUploader from '../components/CoverUploader'
 import CssEditorTab from '../components/CssEditorTab'
 import ErrorAlert from '../components/ErrorAlert'
 import MenuTreeEditor from '../components/MenuTreeEditor'
+import PdfUploadTab from '../components/PdfUploadTab'
 import SingleContentTab from '../components/SingleContentTab'
 
 type Tab = 'info' | 'menus' | 'content' | 'css'
@@ -99,20 +100,28 @@ export default function BookEditPage() {
     )
   }
 
-  const singleMode = (book.source_mode ?? 'menu') === 'single'
-  // 단일 파일 모드는 목차·본문이 업로드한 파일 하나로 끝나므로 탭을 나누지 않는다
-  const tabs: { value: Tab; label: string; badge?: string }[] = singleMode
+  const mode = book.source_mode ?? 'menu'
+  const singleMode = mode === 'single'
+  const pdfMode = mode === 'pdf'
+  // 파일 하나로 끝나는 모드(single/pdf)는 목차·본문 탭을 나누지 않는다
+  const tabs: { value: Tab; label: string; badge?: string }[] = pdfMode
     ? [
         { value: 'info', label: '기본정보' },
-        { value: 'menus', label: '파일 업로드' },
+        { value: 'menus', label: 'PDF 파일' },
         { value: 'css', label: 'CSS' },
       ]
-    : [
-        { value: 'info', label: '기본정보' },
-        { value: 'menus', label: '목차 관리', badge: menus ? String(menus.length) : undefined },
-        { value: 'content', label: '콘텐츠 작성' },
-        { value: 'css', label: 'CSS' },
-      ]
+    : singleMode
+      ? [
+          { value: 'info', label: '기본정보' },
+          { value: 'menus', label: '파일 업로드' },
+          { value: 'css', label: 'CSS' },
+        ]
+      : [
+          { value: 'info', label: '기본정보' },
+          { value: 'menus', label: '목차 관리', badge: menus ? String(menus.length) : undefined },
+          { value: 'content', label: '콘텐츠 작성' },
+          { value: 'css', label: 'CSS' },
+        ]
 
   return (
     <div>
@@ -183,7 +192,9 @@ export default function BookEditPage() {
         </div>
 
         <div className={tab === 'menus' ? '' : 'hidden'}>
-          {singleMode ? (
+          {pdfMode ? (
+            <PdfUploadTab book={book} onSaved={setBook} />
+          ) : singleMode ? (
             <SingleContentTab book={book} onSaved={setBook} />
           ) : (
             <>
@@ -197,7 +208,7 @@ export default function BookEditPage() {
           )}
         </div>
 
-        {!singleMode && (
+        {!singleMode && !pdfMode && (
           <div className={tab === 'content' ? '' : 'hidden'}>
             <ContentEditorTab
               book={book}

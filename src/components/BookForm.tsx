@@ -142,6 +142,7 @@ export default function BookForm({
             [
               { value: 'menu', label: '메뉴 구성', hint: '목차를 만들고 메뉴별로 작성' },
               { value: 'single', label: '단일 파일 업로드', hint: '완성된 HTML/MD 파일 하나' },
+              { value: 'pdf', label: 'PDF', hint: 'PDF 한 개를 그대로' },
             ] as { value: SourceMode; label: string; hint: string }[]
           ).map((m) => (
             <label key={m.value} className="flex items-center gap-1.5 text-sm text-gray-700">
@@ -188,10 +189,15 @@ export default function BookForm({
             바꾸면 기존 메뉴가 이상하게 보일 수 있습니다.
           </p>
         </fieldset>
-      ) : (
+      ) : sourceMode === 'single' ? (
         <p className="text-xs text-gray-400">
           본문 형식은 업로드한 파일 확장자(.html/.md)에 따라 자동으로 결정됩니다. HTML은 메뉴
           없이 전체 화면으로, 마크다운은 제목(H1·H2) 기준으로 목차가 자동 생성됩니다.
+        </p>
+      ) : (
+        <p className="text-xs text-gray-400">
+          PDF 한 개를 올려 원본 그대로 보여줍니다. 목차·본문 편집과 본문 검색은 되지 않습니다.
+          저장하고 나면 'PDF 파일' 탭에서 파일을 올릴 수 있습니다.
         </p>
       )}
 
