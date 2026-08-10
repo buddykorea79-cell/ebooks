@@ -1,28 +1,21 @@
-import { supabase } from '../lib/supabase'
 import type { ContentFormat } from '../types/database'
+import { uploadToR2 } from './r2'
 
 /**
  * 본문에 넣을 이미지 업로드.
- * 표지(covers)와 버킷을 나눠 'content'에 넣는다 (supabase/content-images.sql).
+ * PDF와 같은 Cloudflare R2 버킷을 쓴다(서버에서 kind로 폴더를 나눈다).
+ * 파일 이름 중복은 서버가 키에 UUID를 붙여 막는다.
  */
 
-const BUCKET = 'content'
 const MAX_SIZE_MB = 10
 
 /**
  * 허용 형식. SVG는 제외한다 — 공개 버킷이라 URL을 직접 열면 스크립트가 실행될 수 있다.
- * (표지는 sanitizeSvg로 정제하지만 본문 이미지는 그 경로를 타지 않는다)
+ * (서버도 같은 목록으로 한 번 더 막는다)
  */
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif']
 
-const EXT_BY_TYPE: Record<string, string> = {
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
-  'image/gif': 'gif',
-  'image/webp': 'webp',
-  'image/avif': 'avif',
-}
-
+/** 올리기 전에 브라우저에서 걸러 낸다. 문제가 없으면 null */
 export function imageUploadErrorMessage(file: File): string | null {
   if (!ALLOWED_TYPES.includes(file.type)) {
     return `${file.name}: PNG, JPG, GIF, WebP, AVIF 이미지만 올릴 수 있습니다.`
@@ -33,32 +26,13 @@ export function imageUploadErrorMessage(file: File): string | null {
   return null
 }
 
-/** Storage에 올리고 공개 URL 반환. 경로 = {userId}/{bookId}/{timestamp}-{rand}.{ext} */
+/** R2에 올리고 공개 URL 반환 */
 export async function uploadContentImage(bookId: string, file: File): Promise<string> {
   const invalid = imageUploadErrorMessage(file)
   if (invalid) throw new Error(invalid)
 
-  const { data: userData, error: userError } = await supabase.auth.getUser()
-  if (userError) throw userError
-  if (!userData.user) throw new Error('로그인이 필요합니다.')
-
-  const ext = EXT_BY_TYPE[file.type] ?? 'png'
-  const rand = Math.random().toString(36).slice(2, 8)
-  const path = `${userData.user.id}/${bookId}/${Date.now()}-${rand}.${ext}`
-
-  const { error } = await supabase.storage
-    .from(BUCKET)
-    .upload(path, file, { cacheControl: '31536000', upsert: false, contentType: file.type })
-  if (error) {
-    if (/bucket/i.test(error.message)) {
-      throw new Error(
-        '이미지 저장소가 준비되지 않았습니다. supabase/content-images.sql을 SQL Editor에서 실행하세요.',
-      )
-    }
-    throw error
-  }
-
-  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
+  const result = await uploadToR2('image', bookId, file)
+  return result.url
 }
 
 /** 편집기에 삽입할 마크업. 폭은 넘치지 않게 제한한다 */

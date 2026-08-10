@@ -1,6 +1,7 @@
 /**
  * POST /api/r2-upload-url — Cloudflare R2 업로드용 서명 URL 발급.
  *
+ * PDF 도서와 본문 이미지가 같은 버킷을 쓴다(kind로 구분).
  * 파일 자체는 이 함수를 거치지 않는다. Vercel 서버리스 함수는 요청 본문이
  * 4.5MB로 제한돼 있어 수십 MB짜리 PDF가 통과하지 못하기 때문이다.
  * 여기서는 몇 KB짜리 서명 URL만 만들어 주고, 실제 전송은
@@ -11,13 +12,37 @@
  *    모듈 로드 단계에서 FUNCTION_INVOCATION_FAILED로 죽는다.
  *    (그래서 api/ai.ts의 인증 검사 코드가 여기 일부 중복된다)
  */
+import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { AwsClient } from 'aws4fetch'
 
 /** 서명 URL 유효 시간 — 큰 파일 업로드를 감안해 넉넉히 */
 const SIGNED_URL_TTL_SEC = 60 * 30
-/** 허용 최대 크기 (R2 자체 제한은 훨씬 크지만 실수 방지용) */
-const MAX_PDF_BYTES = 300 * 1024 * 1024
+
+/** 올릴 수 있는 종류별 규칙. R2 자체 제한은 훨씬 크지만 실수 방지용으로 둔다 */
+const KINDS = {
+  pdf: {
+    folder: 'pdf',
+    maxBytes: 300 * 1024 * 1024,
+    types: { 'application/pdf': 'pdf' } as Record<string, string>,
+    reject: 'PDF 파일만 올릴 수 있습니다.',
+  },
+  image: {
+    folder: 'images',
+    maxBytes: 10 * 1024 * 1024,
+    // SVG는 제외한다 — 공개 버킷이라 URL을 직접 열면 스크립트가 실행될 수 있다
+    types: {
+      'image/png': 'png',
+      'image/jpeg': 'jpg',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
+      'image/avif': 'avif',
+    } as Record<string, string>,
+    reject: 'PNG, JPG, GIF, WebP, AVIF 이미지만 올릴 수 있습니다.',
+  },
+} as const
+
+type Kind = keyof typeof KINDS
 
 interface VercelRequest {
   method?: string
@@ -58,11 +83,33 @@ function bearerToken(header: string | string[] | undefined): string {
   return match ? match[1].trim() : ''
 }
 
-/** 파일 이름을 키로 쓸 수 있게 정리 (한글·공백·특수문자 제거) */
+/**
+ * 파일 이름에서 키에 쓸 수 있는 부분만 남긴다.
+ * 한글·공백·특수문자는 R2 키로도 URL로도 다루기 번거로우니 떨어낸다.
+ * 이름은 '알아보기 위한 꼬리표'일 뿐이고, 중복 방지는 아래 UUID가 담당한다.
+ */
 function safeSlug(name: string): string {
   const base = name.replace(/\.[^.]+$/, '')
-  const ascii = base.replace(/[^a-zA-Z0-9._-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
-  return ascii.slice(0, 40) || 'file'
+  const ascii = base
+    .replace(/[^a-zA-Z0-9._-]/g, '-')
+    .replace(/\.+/g, '.') // '..' 같은 연속 점 제거 (경로 이동으로 읽힐 여지를 없앤다)
+    .replace(/-+/g, '-')
+    .replace(/^[.\-]+|[.\-]+$/g, '')
+    .slice(0, 40)
+  // 한글만 있는 이름 등은 전부 걸러져 빈 문자열이 될 수 있다
+  return /[a-zA-Z0-9]/.test(ascii) ? ascii : 'file'
+}
+
+/**
+ * 절대 겹치지 않는 키를 만든다.
+ *   {userId}/{kind}/{bookId}/{날짜}-{uuid}-{이름}.{확장자}
+ *
+ * 같은 사람이 같은 파일을 같은 밀리초에 여러 번 올려도 uuid가 달라 덮어쓰이지 않는다.
+ * (R2는 같은 키로 PUT하면 조용히 덮어쓰므로 이 보장이 중요하다)
+ */
+export function buildKey(userId: string, kind: Kind, bookId: string, fileName: string, ext: string) {
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  return `${userId}/${KINDS[kind].folder}/${bookId}/${stamp}-${randomUUID()}-${safeSlug(fileName)}.${ext}`
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -84,7 +131,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!accountId || !accessKeyId || !secretAccessKey || !bucket || !publicBase) {
     res.status(500).json({
       error:
-        'PDF 업로드가 서버에 설정되지 않았습니다. 환경변수 R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_BUCKET / R2_PUBLIC_BASE_URL을 등록하세요.',
+        '파일 업로드가 서버에 설정되지 않았습니다. 환경변수 R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_BUCKET / R2_PUBLIC_BASE_URL을 등록하세요.',
     })
     return
   }
@@ -93,12 +140,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  const body = req.body && typeof req.body === 'object'
-    ? (req.body as Record<string, unknown>)
-    : await readJsonBody(req)
+  const body =
+    req.body && typeof req.body === 'object'
+      ? (req.body as Record<string, unknown>)
+      : await readJsonBody(req)
+
+  // kind를 안 보내면 예전 클라이언트로 보고 pdf로 취급한다
+  const kindRaw = typeof body.kind === 'string' ? body.kind : 'pdf'
+  if (!(kindRaw in KINDS)) {
+    res.status(400).json({ error: '알 수 없는 업로드 종류입니다.' })
+    return
+  }
+  const kind = kindRaw as Kind
+  const rule = KINDS[kind]
 
   const bookId = typeof body.bookId === 'string' ? body.bookId : ''
-  const fileName = typeof body.fileName === 'string' ? body.fileName : 'document.pdf'
+  const fileName = typeof body.fileName === 'string' ? body.fileName : 'file'
   const contentType = typeof body.contentType === 'string' ? body.contentType : ''
   const size = typeof body.size === 'number' ? body.size : 0
 
@@ -106,13 +163,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(400).json({ error: '도서 정보가 없습니다.' })
     return
   }
-  if (contentType !== 'application/pdf') {
-    res.status(400).json({ error: 'PDF 파일만 올릴 수 있습니다.' })
+  const ext = rule.types[contentType]
+  if (!ext) {
+    res.status(400).json({ error: rule.reject })
     return
   }
-  if (size <= 0 || size > MAX_PDF_BYTES) {
+  if (size <= 0 || size > rule.maxBytes) {
     res.status(400).json({
-      error: `파일 크기가 올바르지 않습니다. ${Math.round(MAX_PDF_BYTES / 1024 / 1024)}MB 이하만 올릴 수 있습니다.`,
+      error: `파일 크기가 올바르지 않습니다. ${Math.round(rule.maxBytes / 1024 / 1024)}MB 이하만 올릴 수 있습니다.`,
     })
     return
   }
@@ -153,7 +211,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // --- 서명 URL 발급 -----------------------------------------------------
-  const key = `${user.id}/${bookId}/${Date.now()}-${safeSlug(fileName)}.pdf`
+  const key = buildKey(user.id, kind, bookId, fileName, ext)
   const endpoint = `https://${accountId}.r2.cloudflarestorage.com/${bucket}/${key}`
 
   try {

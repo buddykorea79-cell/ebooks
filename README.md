@@ -127,7 +127,7 @@ Claude 등 AI가 만든 **아티팩트 HTML을 `<!doctype html>`부터 통째로
   `Ctrl+S`로 저장하고, **미리보기 ↗** 버튼으로 지금 쓰고 있는 내용을 새 창에서 봅니다.
   저장하지 않은 채 창을 닫으려 하면 브라우저가 확인을 묻습니다.
   **이미지**는 `🖼 이미지` 버튼, 편집기에 **붙여넣기(Ctrl+V)**, **끌어다 놓기** 셋 다 됩니다 —
-  Storage `content` 버킷에 올라가고 커서 위치에 태그가 들어갑니다(2-8).
+  Cloudflare R2에 올라가고 커서 위치에 태그가 들어갑니다(2-8).
 - **파일 업로드** — 단일 파일 모드 전용(2-2의 ③④).
 - **PDF 파일** — PDF 모드 전용. 파일은 Cloudflare R2로 직접 올라갑니다(2-8).
 - **CSS** — 문서 전용 스타일. 뷰어 화면(사이드바·제목 영역)에 적용되고,
@@ -243,25 +243,46 @@ Claude 등 AI가 만든 **아티팩트 HTML을 `<!doctype html>`부터 통째로
 | 올리는 것 | 저장소 | 무료 한도 | 이유 |
 |-----------|--------|-----------|------|
 | 도서 본문(HTML·MD) | **Postgres** `book_menus.html_content`, `books.single_content` | DB 500MB | 텍스트라 DB가 가장 싸고 검색도 됨 |
-| 표지 이미지 | Supabase Storage `covers` | 1GB | 도서당 1장, 작음 |
-| 본문 이미지 | Supabase Storage `content` | 1GB | 여러 장이라 표지와 버킷 분리 |
-| **PDF 도서** | **Cloudflare R2** | 10GB + **전송량 무료** | 교재는 크고 반복 열람이 많아 egress가 비용을 좌우 |
+| 표지 이미지 | Supabase Storage `covers` | 1GB | 도서당 1장, 작고 이미 쓰던 경로 |
+| **본문 이미지** | **Cloudflare R2** | 10GB + **전송량 무료** | 여러 장이 반복 열람됨 |
+| **PDF 도서** | **Cloudflare R2** | (같은 버킷) | 교재는 크고 반복 열람이 많아 egress가 비용을 좌우 |
 
-#### PDF는 왜 R2인가
+#### 왜 R2인가
 
 Supabase 무료 플랜은 **파일 1개 50MB 상한**과 **월 5GB 전송량** 제한이 있습니다. 교재 PDF는
-이 둘 다에 쉽게 걸립니다. R2는 저장 10GB가 무료이고 **전송량이 아예 무료**라 반복 다운로드에
-비용이 붙지 않습니다.
+이 둘 다에 쉽게 걸리고, 본문 이미지도 여러 사람이 반복해서 받으면 전송량부터 바닥납니다.
+R2는 저장 10GB가 무료이고 **전송량이 아예 무료**입니다.
+
+PDF와 본문 이미지가 **같은 버킷**을 쓰고, 서버가 `kind`로 폴더를 나눕니다.
 
 ```
 브라우저 → POST /api/r2-upload-url   (서명 URL만, 몇 KB)
-브라우저 → R2 에 PUT                 (PDF 본체, 수십 MB) ← Vercel을 거치지 않는다
-브라우저 → books.pdf_url 저장
+브라우저 → R2 에 PUT                 (파일 본체) ← Vercel을 거치지 않는다
+브라우저 → books.pdf_url 저장 / 편집기에 <img> 삽입
 ```
 
 파일을 Vercel 함수로 통과시키지 않는 이유는 **서버리스 함수의 요청 본문이 4.5MB로 제한**되기
 때문입니다. 그래서 `api/r2-upload-url.ts`는 서명 URL만 발급하고, 그 과정에서 로그인 여부와
-**해당 도서가 요청자의 것인지**까지 확인합니다.
+**해당 도서가 요청자의 것인지**, 종류별 형식·크기 제한까지 확인합니다.
+
+| kind | 폴더 | 허용 형식 | 최대 |
+|------|------|-----------|------|
+| `pdf` | `{uid}/pdf/{bookId}/` | application/pdf | 300MB |
+| `image` | `{uid}/images/{bookId}/` | PNG·JPG·GIF·WebP·AVIF | 10MB |
+
+SVG는 양쪽 다 막습니다 — 공개 버킷이라 URL을 직접 열면 스크립트가 실행될 수 있습니다.
+
+#### 파일 이름 충돌 방지
+
+R2는 같은 키로 PUT하면 **조용히 덮어씁니다.** 그래서 키에 UUID를 넣습니다.
+
+```
+{userId}/{kind}/{bookId}/{YYYYMMDD}-{uuid}-{정리된이름}.{확장자}
+```
+
+원본 이름은 알아보기 위한 꼬리표일 뿐이고 유일성은 UUID가 보장합니다. 이름 부분은 ASCII만
+남기고 연속된 점을 지워 `..`가 경로 세그먼트로 남지 않게 합니다. 같은 밀리초에 2만 개를
+생성해도 중복이 없는 것을 확인했습니다.
 
 > `X-Amz-Expires`는 반드시 **쿼리스트링**에 넣어야 합니다. 헤더로 넘기면 만료 시간이 무시되고
 > (기본 86400) `SignedHeaders`에 섞여 들어가, 브라우저가 보내지 않는 헤더를 요구하게 되므로
@@ -291,8 +312,10 @@ Supabase 무료 플랜은 **파일 1개 50MB 상한**과 **월 5GB 전송량** �
 | 8 | `admin-members.sql` | 최초 가입자 자동 관리자(가입 트리거 교체), 관리자 지정/해제 함수(`set_user_admin`), **권한 상승 차단**(profiles 컬럼 단위 UPDATE 권한) |
 | 9 | `ai-assist.sql` | AI 작성 도우미 — `profiles.ai_enabled` 컬럼, 허용/차단 함수(`set_user_ai_enabled`), 사용량 로그(`ai_usage`)와 회원별 요약 뷰(`ai_usage_summary`) |
 | 10 | `categories-ai-it.sql` | 분류를 AI·IT 체계로 재구성 (기존 도서를 옮긴 뒤 빈 분류만 삭제) |
-| 11 | `content-images.sql` | 본문 이미지용 Storage `content` 공개 버킷 + 소유자별 폴더 정책 |
-| 12 | `pdf-mode.sql` | `source_mode`에 `'pdf'` 추가 + `books.pdf_url / pdf_name / pdf_size` |
+| 11 | `pdf-mode.sql` | `source_mode`에 `'pdf'` 추가 + `books.pdf_url / pdf_name / pdf_size` |
+
+> 본문 이미지는 DB나 Supabase Storage가 아니라 **Cloudflare R2**로 가므로 SQL이 필요 없습니다
+> (2-8). 환경변수만 등록하면 됩니다.
 
 > **관리자 계정은 어떻게 정해지나요?**
 > `admin-members.sql`을 실행하면 **최초로 가입한 회원이 자동으로 관리자**가 되고,

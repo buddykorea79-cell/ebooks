@@ -121,7 +121,8 @@ export default function DocsPage() {
             편집기에 <strong>붙여넣기(Ctrl+V)</strong>, 편집기로{' '}
             <strong>끌어다 놓기</strong>. 어느 쪽이든 파일이 업로드되고{' '}
             <strong>커서 위치에</strong> 태그가 들어갑니다. PNG·JPG·GIF·WebP·AVIF를 장당 10MB까지
-            올릴 수 있고, 여러 장을 한 번에 골라도 됩니다.
+            올릴 수 있고, 여러 장을 한 번에 골라도 됩니다. 같은 이름의 파일을 여러 번 올려도
+            서로 덮어쓰지 않습니다.
           </li>
           <li>
             Claude 등 AI가 만들어 준 <strong>아티팩트 HTML을 전체 문서 그대로</strong>(
