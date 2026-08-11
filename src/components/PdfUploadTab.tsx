@@ -1,7 +1,9 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Book } from '../types/database'
+import { DEFAULT_PDF_MAX_MB } from '../types/database'
 import { updateBook } from '../api/books'
 import { formatBytes, uploadBookPdf } from '../api/pdf'
+import { fetchSiteSettings } from '../api/settings'
 import ErrorAlert from './ErrorAlert'
 
 interface PdfUploadTabProps {
@@ -20,6 +22,18 @@ export default function PdfUploadTab({ book, onSaved }: PdfUploadTabProps) {
   const [percent, setPercent] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  // 관리자가 정한 상한. 못 읽으면 기본값으로 두고, 최종 판단은 어차피 서버가 한다
+  const [maxMb, setMaxMb] = useState(DEFAULT_PDF_MAX_MB)
+
+  useEffect(() => {
+    fetchSiteSettings()
+      .then((s) => {
+        if (typeof s?.pdf_max_mb === 'number' && s.pdf_max_mb > 0) setMaxMb(s.pdf_max_mb)
+      })
+      .catch(() => {
+        // site-settings-extra.sql 실행 전이면 기본값으로 동작
+      })
+  }, [])
 
   const pdfUrl = book.pdf_url ?? null
 
@@ -30,6 +44,12 @@ export default function PdfUploadTab({ book, onSaved }: PdfUploadTabProps) {
 
     if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) {
       setError('PDF(.pdf) 파일만 올릴 수 있습니다.')
+      return
+    }
+    if (file.size > maxMb * 1024 * 1024) {
+      setError(
+        `파일이 너무 큽니다 (${formatBytes(file.size)}). 최대 ${maxMb}MB까지 올릴 수 있습니다. 관리자에게 한도 상향을 요청하거나 파일을 나눠 주세요.`,
+      )
       return
     }
 
@@ -88,7 +108,9 @@ export default function PdfUploadTab({ book, onSaved }: PdfUploadTabProps) {
       <p className="mt-1 text-sm text-gray-500">
         PDF 한 개를 올리면 그대로 도서가 됩니다. 목차·본문 편집은 없고, 원본 그대로 보여줍니다.
         파일은 <strong className="font-medium text-gray-700">Cloudflare R2</strong>에 저장되며
-        브라우저에서 직접 전송되므로 큰 교재도 올릴 수 있습니다.
+        브라우저에서 직접 전송되므로 큰 교재도 올릴 수 있습니다. 현재 한 파일당{' '}
+        <strong className="font-medium text-gray-700">최대 {maxMb}MB</strong>까지 올릴 수 있습니다
+        (관리자 설정).
       </p>
 
       <input

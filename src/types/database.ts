@@ -59,7 +59,17 @@ export interface SiteSettings {
   /** home-layout.sql 실행 전에는 컬럼이 없어 undefined → 'latest'로 간주 */
   home_layout?: HomeLayout
   home_featured_count?: number
+  /** 한 번에 올릴 수 있는 PDF 최대 크기(MB). site-settings-extra.sql 실행 전에는 undefined */
+  pdf_max_mb?: number
+  /** EduTalk(교육생과 대화하기) 주소. 비어 있으면 홈에 버튼을 감춘다 */
+  edutalk_url?: string | null
 }
+
+/** PDF 최대 크기 선택지 (관리자 화면) */
+export const PDF_MAX_MB_OPTIONS = [10, 20, 50, 100, 200, 300] as const
+
+/** site-settings-extra.sql 실행 전 기본값 */
+export const DEFAULT_PDF_MAX_MB = 50
 
 /** 메뉴 콘텐츠(html_content)를 어떤 형식으로 작성·렌더링할지 */
 export type ContentFormat = 'html' | 'markdown'

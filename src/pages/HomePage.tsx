@@ -74,6 +74,8 @@ export default function HomePage() {
   const [layout, setLayout] = useState<HomeLayout>('latest')
   const [featuredCount, setFeaturedCount] = useState(8)
   const [recommendEnabled, setRecommendEnabled] = useState(false)
+  // 관리자가 주소를 넣었을 때만 'EduTalk' 버튼을 보여준다
+  const [edutalkUrl, setEdutalkUrl] = useState<string | null>(null)
 
   const [recCounts, setRecCounts] = useState<Record<string, number>>({})
   const [myRecs, setMyRecs] = useState<Set<string>>(new Set())
@@ -95,6 +97,7 @@ export default function HomePage() {
           setRecommendEnabled(settings?.recommend_enabled ?? false)
           setLayout(settings?.home_layout ?? 'latest')
           setFeaturedCount(settings?.home_featured_count ?? 8)
+          setEdutalkUrl(settings?.edutalk_url?.trim() || null)
         } catch {
           // admin.sql 실행 전(site_settings 없음)에는 기본값으로 동작
         }
@@ -227,18 +230,25 @@ export default function HomePage() {
             본문을 쓰면 그대로 읽기 좋은 책이 됩니다.
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-3">
-            <a
-              href="#books"
-              className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
-            >
-              도서 둘러보기
-            </a>
             <Link
               to="/my"
-              className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+              className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
             >
               내 교재 만들기
             </Link>
+            {edutalkUrl && (
+              <a
+                href={edutalkUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                교육생과 대화하기 (EduTalk)
+                <span aria-hidden="true" className="text-gray-400">
+                  ↗
+                </span>
+              </a>
+            )}
           </div>
         </div>
       </section>

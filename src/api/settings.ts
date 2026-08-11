@@ -12,6 +12,8 @@ export interface SiteSettingsPatch {
   recommend_enabled?: boolean
   home_layout?: HomeLayout
   home_featured_count?: number
+  pdf_max_mb?: number
+  edutalk_url?: string | null
 }
 
 export async function updateSiteSettings(patch: SiteSettingsPatch): Promise<void> {

@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { AiUsageSummary, BookTypeRow, Category, Profile } from '../types/database'
-import { HOME_LAYOUT_LABELS } from '../types/database'
+import {
+  DEFAULT_PDF_MAX_MB,
+  HOME_LAYOUT_LABELS,
+  PDF_MAX_MB_OPTIONS,
+} from '../types/database'
 import { fetchAiUsageSummary, fetchProfiles, setUserAdmin, setUserAiEnabled } from '../api/profiles'
 import { useAuth } from '../contexts/AuthContext'
 import {
@@ -550,10 +554,15 @@ function FeatureSettings() {
   const [settings, setSettings] = useState<SiteSettings | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // 주소는 타이핑 중간마다 저장할 수 없으니 초안을 따로 들고 있는다
+  const [edutalkDraft, setEdutalkDraft] = useState('')
 
   useEffect(() => {
     fetchSiteSettings()
-      .then((s) => setSettings(s))
+      .then((s) => {
+        setSettings(s)
+        setEdutalkDraft(s?.edutalk_url ?? '')
+      })
       .catch((err) =>
         setError(
           `설정을 불러오지 못했습니다: ${errMsg(err)}\n(site_settings 테이블이 없다면 supabase/admin.sql을 먼저 실행하세요)`,
@@ -574,17 +583,29 @@ function FeatureSettings() {
       setSettings(prev)
       const msg = errMsg(err)
       setError(
-        msg.includes('home_layout') || msg.includes('home_featured_count')
-          ? '저장에 실패했습니다. supabase/home-layout.sql을 SQL Editor에서 실행했는지 확인하세요.'
-          : msg,
+        msg.includes('pdf_max_mb') || msg.includes('edutalk_url')
+          ? '저장에 실패했습니다. supabase/site-settings-extra.sql을 SQL Editor에서 실행했는지 확인하세요.'
+          : msg.includes('home_layout') || msg.includes('home_featured_count')
+            ? '저장에 실패했습니다. supabase/home-layout.sql을 SQL Editor에서 실행했는지 확인하세요.'
+            : msg,
       )
     } finally {
       setBusy(false)
     }
   }
 
+  function saveEdutalkUrl() {
+    const url = edutalkDraft.trim()
+    if (url && !/^https?:\/\//i.test(url)) {
+      setError('EduTalk 주소는 http:// 또는 https:// 로 시작해야 합니다.')
+      return
+    }
+    save({ edutalk_url: url || null })
+  }
+
   const layout = settings?.home_layout ?? 'latest'
   const featuredCount = settings?.home_featured_count ?? 8
+  const pdfMaxMb = settings?.pdf_max_mb ?? DEFAULT_PDF_MAX_MB
 
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4">
@@ -659,6 +680,75 @@ function FeatureSettings() {
                 정렬되니, 위의 '회원 추천 기능 사용'도 함께 켜는 것이 좋습니다.
               </p>
             )}
+          </div>
+
+          <div className="mt-5 border-t border-gray-100 pt-4">
+            <h3 className="text-sm font-medium text-gray-700">PDF 업로드 최대 크기</h3>
+            <p className="mt-1 text-xs text-gray-500">
+              PDF 도서에서 한 번에 올릴 수 있는 파일 크기입니다. 화면에서 미리 걸러 주고, 서버도
+              같은 값으로 다시 확인합니다.
+            </p>
+            <label className="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-700">
+              한 파일당
+              <select
+                value={pdfMaxMb}
+                disabled={busy}
+                onChange={(e) => save({ pdf_max_mb: Number(e.target.value) })}
+                className={inputClass}
+              >
+                {PDF_MAX_MB_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n}MB
+                  </option>
+                ))}
+              </select>
+              까지
+            </label>
+            <p className="mt-2 text-xs text-gray-400">
+              파일은 Cloudflare R2로 브라우저에서 직접 전송되므로 서버 용량과는 무관합니다. 다만
+              크게 잡을수록 저장·전송량이 늘어납니다.
+            </p>
+          </div>
+
+          <div className="mt-5 border-t border-gray-100 pt-4">
+            <h3 className="text-sm font-medium text-gray-700">교육생과 대화하기 (EduTalk)</h3>
+            <p className="mt-1 text-xs text-gray-500">
+              주소를 넣으면 홈 화면에 <strong className="font-medium">교육생과 대화하기</strong>{' '}
+              버튼이 생기고, 누르면 새 창으로 열립니다. 비워 두면 버튼이 표시되지 않습니다.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <input
+                type="url"
+                value={edutalkDraft}
+                disabled={busy}
+                onChange={(e) => setEdutalkDraft(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && saveEdutalkUrl()}
+                placeholder="https://edutalk-xxxx.onrender.com"
+                className={`${inputClass} min-w-0 flex-1`}
+              />
+              <button
+                onClick={saveEdutalkUrl}
+                disabled={busy || edutalkDraft.trim() === (settings.edutalk_url ?? '')}
+                className="rounded bg-brand-600 px-3 py-1 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-40"
+              >
+                저장
+              </button>
+              {settings.edutalk_url && (
+                <a
+                  href={settings.edutalk_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={smallBtn}
+                >
+                  열어보기 ↗
+                </a>
+              )}
+            </div>
+            <p className="mt-2 text-xs text-gray-400">
+              EduTalk는 실시간 통신(Socket.IO) 서버라 이 사이트(Vercel)와 함께 배포할 수 없습니다.
+              저장소의 <code className="rounded bg-gray-100 px-1">edutalk/</code> 폴더를 Render 등에
+              따로 배포한 뒤 그 주소를 넣으세요.
+            </p>
           </div>
         </>
       )}

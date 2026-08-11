@@ -170,6 +170,8 @@ Claude 등 AI가 만든 **아티팩트 HTML을 `<!doctype html>`부터 통째로
 | AI 사용 권한 | 회원별로 AI 작성 도우미 허용 / 차단 + 회원별 사용 횟수·누적 요금 확인 |
 | 추천 기능 | 켜기 / 끄기 |
 | 홈 목록 구성 | 최신순 / 추천순 / '추천 도서 + 최신 도서' 2단 (2단일 때 추천 개수 지정) |
+| PDF 최대 크기 | 한 파일당 10~300MB (기본 **50MB**). 화면과 서버가 같은 값으로 검사 |
+| EduTalk 주소 | 넣으면 홈에 '교육생과 대화하기' 버튼이 생기고 새 창으로 열림 (2-9) |
 
 - **Docs**(`/docs`) — 이용자를 위한 사용법 안내 페이지
 
@@ -291,6 +293,26 @@ R2는 같은 키로 PUT하면 **조용히 덮어씁니다.** 그래서 키에 UU
 설정에 필요한 환경변수와 Cloudflare 쪽 준비 순서(공개 주소, CORS, API 토큰)는
 [.env.example](.env.example)에 적어 두었습니다.
 
+PDF 한 파일의 최대 크기는 관리자 화면에서 정합니다(기본 50MB). 화면에서 미리 걸러 주지만
+그건 우회할 수 있으므로, 서명 URL을 발급하기 전에 서버가 `site_settings.pdf_max_mb`를 읽어
+다시 확인합니다.
+
+### 2-9. EduTalk (교육생과 대화하기)
+
+강의 중 실시간 대화·설문·화이트보드를 쓰는 별도 도구입니다. 코드는
+[edutalk/](edutalk/) 폴더에 있습니다.
+
+> ⚠️ **이 폴더는 LibroSpace와 함께 배포되지 않습니다.** EduTalk는 Socket.IO 상시 실행
+> 서버라 서버리스인 Vercel에서 동작하지 않습니다. Render 등에 따로 배포한 뒤, 그 주소를
+> 관리자 화면 → 기능 설정에 넣으면 홈에 버튼이 생깁니다. 주소가 비어 있으면 버튼을 감춥니다.
+
+```
+LibroSpace (Vercel)          EduTalk (Render 등)
+  홈 화면의 버튼  ──새 창──▶   https://edutalk-xxxx.onrender.com
+```
+
+자세한 실행·배포 절차는 [edutalk/README.md](edutalk/README.md)를 보세요.
+
 ---
 
 ## 3. 데이터베이스 (Supabase)
@@ -313,6 +335,7 @@ R2는 같은 키로 PUT하면 **조용히 덮어씁니다.** 그래서 키에 UU
 | 9 | `ai-assist.sql` | AI 작성 도우미 — `profiles.ai_enabled` 컬럼, 허용/차단 함수(`set_user_ai_enabled`), 사용량 로그(`ai_usage`)와 회원별 요약 뷰(`ai_usage_summary`) |
 | 10 | `categories-ai-it.sql` | 분류를 AI·IT 체계로 재구성 (기존 도서를 옮긴 뒤 빈 분류만 삭제) |
 | 11 | `pdf-mode.sql` | `source_mode`에 `'pdf'` 추가 + `books.pdf_url / pdf_name / pdf_size` |
+| 12 | `site-settings-extra.sql` | `site_settings.pdf_max_mb`(기본 50) + `site_settings.edutalk_url` |
 
 > 본문 이미지는 DB나 Supabase Storage가 아니라 **Cloudflare R2**로 가므로 SQL이 필요 없습니다
 > (2-8). 환경변수만 등록하면 됩니다.

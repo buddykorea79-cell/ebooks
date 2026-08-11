@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduTalk - 교육 소통 플랫폼</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="landing">
+    <div class="landing-logo">🎓 EduTalk</div>
+    <p class="landing-tagline">실시간 교육 소통 플랫폼<br>강의를 더 생동감 있게</p>
+    <div class="landing-cards">
+      <a href="/instructor.html" class="landing-card">
+        <div class="landing-card-icon">👨‍🏫</div>
+        <div class="landing-card-label">강사</div>
+        <div class="landing-card-desc">강의실을 열고 학생들과<br>실시간으로 소통하세요</div>
+      </a>
+      <a href="/student.html" class="landing-card">
+        <div class="landing-card-icon">🧑‍💻</div>
+        <div class="landing-card-label">학생</div>
+        <div class="landing-card-desc">방 코드로 입장하고<br>강의에 참여하세요</div>
+      </a>
+    </div>
+    <div class="landing-footer">
+      <span id="footer-info">EduTalk v3 · 2026</span>
+      · <a href="/admin.html" style="color:inherit">관리자</a>
+    </div>
+  </div>
+<script>
+fetch('/api/deploy-info')
+  .then(r => r.json())
+  .then(d => {
+    const el = document.getElementById('footer-info');
+    const ts = new Date(d.startedAt);
+    const pad = n => String(n).padStart(2, '0');
+    const timeStr = `${ts.getFullYear()}.${pad(ts.getMonth()+1)}.${pad(ts.getDate())} ${pad(ts.getHours())}:${pad(ts.getMinutes())}`;
+    const commit = d.commit ? ` · ${d.commit.slice(0,7)}` : '';
+    el.textContent = `EduTalk v3 · 2026 · 배포: ${timeStr}${commit}`;
+    el.title = [
+      d.message  ? `커밋 메시지: ${d.message}` : '',
+      d.branch   ? `브랜치: ${d.branch}`       : ''
+    ].filter(Boolean).join('\n') || '';
+  })
+  .catch(() => {});
+</script>
+</body>
+</html>

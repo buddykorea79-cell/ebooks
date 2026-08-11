@@ -20,10 +20,16 @@ import { AwsClient } from 'aws4fetch'
 const SIGNED_URL_TTL_SEC = 60 * 30
 
 /** 올릴 수 있는 종류별 규칙. R2 자체 제한은 훨씬 크지만 실수 방지용으로 둔다 */
+/** site_settings.pdf_max_mb를 못 읽을 때 쓰는 값 (마이그레이션 전 등) */
+const DEFAULT_PDF_MAX_MB = 50
+/** 관리자가 설정할 수 있는 절대 상한 — DB 제약(1~500)과 맞춘다 */
+const PDF_MAX_MB_CEILING = 500
+
 const KINDS = {
   pdf: {
     folder: 'pdf',
-    maxBytes: 300 * 1024 * 1024,
+    // 실제 상한은 site_settings.pdf_max_mb가 결정한다 (아래에서 덮어씀)
+    maxBytes: DEFAULT_PDF_MAX_MB * 1024 * 1024,
     types: { 'application/pdf': 'pdf' } as Record<string, string>,
     reject: 'PDF 파일만 올릴 수 있습니다.',
   },
@@ -168,9 +174,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(400).json({ error: rule.reject })
     return
   }
-  if (size <= 0 || size > rule.maxBytes) {
+  if (size <= 0) {
+    res.status(400).json({ error: '파일 크기가 올바르지 않습니다.' })
+    return
+  }
+  // 이미지는 고정 한도라 여기서 바로 거른다.
+  // PDF만 관리자 설정을 읽어야 해서 로그인 확인 뒤로 미룬다.
+  if (kind !== 'pdf' && size > rule.maxBytes) {
     res.status(400).json({
-      error: `파일 크기가 올바르지 않습니다. ${Math.round(rule.maxBytes / 1024 / 1024)}MB 이하만 올릴 수 있습니다.`,
+      error: `파일이 너무 큽니다. ${Math.round(rule.maxBytes / 1024 / 1024)}MB 이하만 올릴 수 있습니다.`,
     })
     return
   }
@@ -208,6 +220,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!book || (book as { owner_id?: string }).owner_id !== user.id) {
     res.status(403).json({ error: '내가 만든 도서에만 파일을 올릴 수 있습니다.' })
     return
+  }
+
+  // --- PDF 크기 제한 확인 -------------------------------------------------
+  // 상한은 관리자가 정한다(site_settings.pdf_max_mb). 화면에서도 미리 걸러 주지만
+  // 그건 우회할 수 있으므로 최종 판단은 여기서 한다.
+  if (kind === 'pdf') {
+    let limitMb = DEFAULT_PDF_MAX_MB
+    const { data: settings } = await supabase
+      .from('site_settings')
+      .select('pdf_max_mb')
+      .eq('id', 1)
+      .maybeSingle()
+    const raw = (settings as { pdf_max_mb?: number } | null)?.pdf_max_mb
+    if (typeof raw === 'number' && raw > 0) {
+      limitMb = Math.min(raw, PDF_MAX_MB_CEILING)
+    }
+    if (size > limitMb * 1024 * 1024) {
+      res.status(400).json({
+        error: `파일이 너무 큽니다. ${limitMb}MB 이하만 올릴 수 있습니다.`,
+      })
+      return
+    }
   }
 
   // --- 서명 URL 발급 -----------------------------------------------------
