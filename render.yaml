@@ -1,0 +1,40 @@
+# Render Blueprint — EduTalk 배포용
+#
+# 이 저장소는 두 앱을 담고 있습니다.
+#   * 루트        — LibroSpace (Vite SPA, Vercel에 배포)
+#   * edutalk/    — EduTalk (Express + Socket.IO, 여기 Render에 배포)
+#
+# Blueprint는 render.yaml을 '저장소 루트'에서만 찾기 때문에 이 파일이 루트에 있고,
+# rootDir로 edutalk 폴더를 가리킵니다. rootDir 덕분에 LibroSpace 쪽 코드만 바뀐
+# 커밋에서는 EduTalk가 다시 빌드되지 않습니다.
+#
+# 시크릿은 이 파일에 적지 않습니다(sync: false). Render 대시보드에서 값을 넣으라고
+# 물어봅니다. SUPABASE_URL / SUPABASE_ANON_KEY는 반드시 LibroSpace와 '같은 값'이어야
+# 계정이 공유됩니다.
+
+services:
+  - type: web
+    name: edutalk
+    runtime: node
+    plan: free
+    rootDir: edutalk
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/ping
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # ↓ LibroSpace와 같은 Supabase 프로젝트 값
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      # 서버 전용 — 토큰 검증·강사 프로필 관리
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # 관리자 계정 이메일 (이 계정은 첫 로그인 시 자동 승인)
+      - key: ADMIN_EMAIL
+        sync: false
+      # 로그인 화면의 가입·비밀번호 찾기 링크가 향할 곳
+      - key: LIBROSPACE_URL
+        value: https://librospace-three.vercel.app
