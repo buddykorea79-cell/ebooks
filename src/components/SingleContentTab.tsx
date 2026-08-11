@@ -29,6 +29,16 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
     setError(null)
     setSaved(false)
 
+    // PDF를 여기 올리려는 경우가 잦다 — 어디로 가야 하는지 알려 준다
+    if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+      setError(
+        'PDF는 이 탭에서 올릴 수 없습니다. ' +
+          "기본정보 탭에서 구성 방식을 'PDF'로 바꾸고 저장하면 'PDF 파일' 탭이 나타납니다. " +
+          '거기서는 훨씬 큰 파일도 올릴 수 있습니다.',
+      )
+      return
+    }
+
     let format: ContentFormat
     if (/\.(md|markdown)$/i.test(file.name)) format = 'markdown'
     else if (/\.(html?|xhtml)$/i.test(file.name)) format = 'html'
@@ -87,7 +97,12 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
       <p className="text-sm text-gray-500">
         완성된 <strong>HTML(.html)</strong> 또는 <strong>마크다운(.md)</strong> 파일 하나를
         올리면 그대로 도서 본문이 됩니다. HTML은 메뉴 없이 전체 화면으로, 마크다운은 제목(H1·H2)
-        기준으로 목차가 자동 생성됩니다.
+        기준으로 목차가 자동 생성됩니다. 파일은 5MB 이하여야 합니다.
+      </p>
+      <p className="mt-1.5 text-sm text-gray-500">
+        <strong className="font-medium text-gray-700">PDF를 올리시려면</strong> 기본정보 탭에서
+        구성 방식을 <strong className="font-medium text-gray-700">PDF</strong>로 바꿔 주세요. 이
+        탭이 'PDF 파일' 탭으로 바뀌고 훨씬 큰 파일을 올릴 수 있습니다.
       </p>
 
       <input

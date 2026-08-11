@@ -606,6 +606,12 @@ function FeatureSettings() {
   const layout = settings?.home_layout ?? 'latest'
   const featuredCount = settings?.home_featured_count ?? 8
   const pdfMaxMb = settings?.pdf_max_mb ?? DEFAULT_PDF_MAX_MB
+  /**
+   * site-settings-extra.sql 실행 여부.
+   * 조회는 select('*')라 성공하지만 컬럼이 없으면 값이 undefined로 온다.
+   * 저장할 때가 되어서야 실패하면 원인을 알기 어려우므로 미리 알려 준다.
+   */
+  const needsExtraSql = settings !== null && settings.pdf_max_mb === undefined
 
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4">
@@ -682,6 +688,16 @@ function FeatureSettings() {
             )}
           </div>
 
+          {needsExtraSql && (
+            <div className="mt-5 rounded border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+              <strong className="font-semibold">아래 두 설정이 아직 준비되지 않았습니다.</strong>
+              <br />
+              Supabase SQL Editor에서{' '}
+              <code className="rounded bg-amber-100 px-1">supabase/site-settings-extra.sql</code>{' '}
+              을 실행한 뒤 이 페이지를 새로고침하세요. 실행 전에는 저장이 실패합니다.
+            </div>
+          )}
+
           <div className="mt-5 border-t border-gray-100 pt-4">
             <h3 className="text-sm font-medium text-gray-700">PDF 업로드 최대 크기</h3>
             <p className="mt-1 text-xs text-gray-500">
@@ -692,7 +708,7 @@ function FeatureSettings() {
               한 파일당
               <select
                 value={pdfMaxMb}
-                disabled={busy}
+                disabled={busy || needsExtraSql}
                 onChange={(e) => save({ pdf_max_mb: Number(e.target.value) })}
                 className={inputClass}
               >
@@ -720,7 +736,7 @@ function FeatureSettings() {
               <input
                 type="url"
                 value={edutalkDraft}
-                disabled={busy}
+                disabled={busy || needsExtraSql}
                 onChange={(e) => setEdutalkDraft(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && saveEdutalkUrl()}
                 placeholder="https://edutalk-xxxx.onrender.com"
@@ -728,7 +744,7 @@ function FeatureSettings() {
               />
               <button
                 onClick={saveEdutalkUrl}
-                disabled={busy || edutalkDraft.trim() === (settings.edutalk_url ?? '')}
+                disabled={busy || needsExtraSql || edutalkDraft.trim() === (settings.edutalk_url ?? '')}
                 className="rounded bg-brand-600 px-3 py-1 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-40"
               >
                 저장

@@ -103,7 +103,9 @@ async function initAuth() {
     // 가입·비밀번호 재설정은 계정을 관리하는 LibroSpace 쪽으로 보낸다
     if (cfg.librospaceUrl) {
       $('signup-link').href = cfg.librospaceUrl + '/#/signup';
+      // 비밀번호 변경도 계정을 관리하는 LibroSpace에서 (메일 링크 방식이라 로그인 여부와 무관)
       $('reset-link').href = cfg.librospaceUrl + '/#/forgot-password';
+      $('setup-reset-link').href = cfg.librospaceUrl + '/#/forgot-password';
     }
     if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
       showAuthState('login');
@@ -195,6 +197,7 @@ async function doLogout() {
 }
 $('pending-logout-btn').addEventListener('click', doLogout);
 $('rejected-logout-btn').addEventListener('click', doLogout);
+$('setup-logout-btn').addEventListener('click', (e) => { e.preventDefault(); doLogout(); });
 
 initAuth();
 

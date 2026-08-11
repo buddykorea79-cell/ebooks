@@ -32,6 +32,10 @@ function showLoginState(state) {  // 'loading' | 'form'
 async function initAuth() {
   try {
     const cfg = await (await fetch('/api/config')).json();
+    // 계정은 LibroSpace가 관리하므로 비밀번호 변경도 그쪽에서 한다
+    if (cfg.librospaceUrl) {
+      $('reset-link').href = cfg.librospaceUrl + '/#/forgot-password';
+    }
     if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
       showLoginState('form');
       showLoginError('서버에 인증이 설정되지 않았습니다.');
