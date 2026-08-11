@@ -10,7 +10,7 @@
     {
       "name": "edutalk",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "edutalk", "start"],
+      "runtimeArgs": ["--prefix", "edutalk", "run", "dev"],
       "port": 3000
     }
   ]

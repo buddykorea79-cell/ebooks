@@ -76,7 +76,9 @@ function showScreen(id) {
   });
 }
 
-// ── Auth (Supabase Google OAuth → 관리자 승인 후 사용) ──────────────────────
+// ── Auth (LibroSpace와 같은 Supabase 계정 → 관리자 승인 후 사용) ────────────
+// 로그인은 이메일/비밀번호(Supabase Auth). LibroSpace와 같은 Supabase 프로젝트를
+// 바라보므로 그쪽에서 가입한 계정으로 그대로 들어온다.
 let sb = null;             // Supabase 브라우저 클라이언트
 let myAccountName = '';
 
@@ -98,10 +100,15 @@ async function currentToken() {
 async function initAuth() {
   try {
     const cfg = await (await fetch('/api/config')).json();
+    // 가입·비밀번호 재설정은 계정을 관리하는 LibroSpace 쪽으로 보낸다
+    if (cfg.librospaceUrl) {
+      $('signup-link').href = cfg.librospaceUrl + '/#/signup';
+      $('reset-link').href = cfg.librospaceUrl + '/#/forgot-password';
+    }
     if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
       showAuthState('login');
       showError('auth-error', '서버에 인증이 설정되지 않았습니다. 관리자에게 문의하세요.');
-      $('google-login-btn').disabled = true;
+      $('login-btn').disabled = true;
       return;
     }
     sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
@@ -142,13 +149,44 @@ async function checkProfile(token) {
   }
 }
 
-$('google-login-btn').addEventListener('click', async () => {
+$('login-form-el').addEventListener('submit', async (e) => {
+  e.preventDefault();
   if (!sb) return;
-  await sb.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: window.location.origin + '/instructor.html' }
-  });
+
+  const email = $('login-email').value.trim();
+  const password = $('login-password').value;
+  if (!email || !password) {
+    showError('auth-error', '이메일과 비밀번호를 입력하세요.');
+    return;
+  }
+
+  const btn = $('login-btn');
+  btn.disabled = true;
+  btn.textContent = '로그인 중...';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) {
+      showError('auth-error', authErrorMessage(error));
+      return;
+    }
+    $('login-password').value = '';
+    await checkProfile(data.session.access_token);
+  } catch (err) {
+    showError('auth-error', '서버 오류가 발생했습니다.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '로그인';
+  }
 });
+
+// Supabase 인증 오류를 한국어로
+function authErrorMessage(error) {
+  const msg = String((error && error.message) || '');
+  if (/invalid login credentials/i.test(msg)) return '이메일 또는 비밀번호가 올바르지 않습니다.';
+  if (/email not confirmed/i.test(msg)) return '이메일 인증이 완료되지 않았습니다. 받은 메일의 링크를 확인하세요.';
+  if (/too many requests|rate limit/i.test(msg)) return '시도가 너무 잦습니다. 잠시 후 다시 시도하세요.';
+  return msg || '로그인에 실패했습니다.';
+}
 
 async function doLogout() {
   if (sb) await sb.auth.signOut();

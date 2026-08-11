@@ -57,17 +57,17 @@ git push -u origin main
 
 ## 강사 계정 / 관리자 페이지
 
-- **강사 로그인**: `/instructor.html` 에서 **Google 계정으로 로그인**합니다.
-  첫 로그인 시 자동으로 등록 신청(pending)되며, 관리자 승인 후 강의실을
-  열 수 있습니다.
+- **강사 로그인**: `/instructor.html` 에서 **LibroSpace와 같은 계정(이메일/비밀번호)**
+  으로 로그인합니다. 첫 로그인 시 자동으로 등록 신청(pending)되며, 관리자 승인 후
+  강의실을 열 수 있습니다. 가입·비밀번호 재설정은 LibroSpace에서 합니다.
 - **관리자 페이지**: `/admin.html` — 강사 등록 신청을 승인/거절/삭제합니다.
-  관리자는 `ADMIN_EMAIL` 환경변수(기본값 `buddykorea79@gmail.com`)의 Google
+  관리자는 `ADMIN_EMAIL` 환경변수(기본값 `buddykorea79@gmail.com`)의
   계정으로만 접근하며, 첫 로그인 시 자동 승인됩니다.
   관리자 계정은 관리자 페이지에서 삭제할 수 없습니다.
 - **방 입장**: 학생은 6자리 방 코드만으로 입장합니다 (방 비밀번호 없음).
 - **필요 환경변수**: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
-  `SUPABASE_ANON_KEY`. Supabase 대시보드에서 Google OAuth Provider 활성화 및
-  Redirect URL(`/instructor.html`, `/admin.html`) 등록이 필요합니다.
+  `SUPABASE_ANON_KEY`. 앞의 둘은 **LibroSpace와 같은 프로젝트 값**이어야 계정이
+  공유됩니다. 이메일/비밀번호 로그인이라 Google OAuth Provider 설정은 필요 없습니다.
 
   프로필 테이블 생성 SQL (Supabase SQL Editor 에서 1회 실행):
 

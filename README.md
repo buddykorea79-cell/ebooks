@@ -311,6 +311,17 @@ LibroSpace (Vercel)          EduTalk (Render 등)
   홈 화면의 버튼  ──새 창──▶   https://edutalk-xxxx.onrender.com
 ```
 
+**계정은 LibroSpace와 공용입니다.** 강사·관리자 로그인이 같은 Supabase 프로젝트의
+이메일/비밀번호 계정을 그대로 쓰므로, LibroSpace에서 가입한 계정으로 바로 들어갑니다.
+따라서 EduTalk에 `SUPABASE_URL`과 `SUPABASE_ANON_KEY`를 **LibroSpace와 같은 값**으로
+넣어야 합니다. 로그인 화면의 가입·비밀번호 찾기 링크도 LibroSpace로 연결됩니다.
+
+| | LibroSpace | EduTalk |
+|---|---|---|
+| 로그인 | 이메일/비밀번호 | **같은 계정** |
+| 권한 | `profiles.is_admin`, `ai_enabled` | `instructor_profiles.status` (관리자 승인) |
+| 교육생 | — | 로그인 없이 6자리 방 코드 |
+
 자세한 실행·배포 절차는 [edutalk/README.md](edutalk/README.md)를 보세요.
 
 ---

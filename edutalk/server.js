@@ -16,9 +16,13 @@ const io = new Server(server);
 // ── Config ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 
-// 관리자 = 아래 이메일의 Google 계정. 이 계정으로 Google 로그인하면
+// 관리자 = 아래 이메일의 계정. 이 계정으로 로그인하면
 // 관리자 페이지를 사용할 수 있고, 강사 프로필도 자동 승인된다.
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'buddykorea79@gmail.com').toLowerCase();
+
+// LibroSpace 주소 — 계정을 공유하므로 가입·비밀번호 재설정 링크를 그쪽으로 보낸다
+const LIBROSPACE_URL = (process.env.LIBROSPACE_URL || 'https://librospace-three.vercel.app')
+  .replace(/\/+$/, '');
 
 const MAX_ROOMS = 5;              // 동시에 개설 가능한 최대 방 개수
 const ROOM_CAPACITY = 50;         // 방당 최대 학생 수
@@ -26,13 +30,13 @@ const MAX_WHITEBOARD_SEGMENTS = 100000;  // 화이트보드 누적 세그먼트 
 const MAX_MESSAGES = 500;         // 방별 채팅 보관 상한 (메모리 보호, 초과 시 오래된 것부터 삭제)
 
 // ── Supabase (인증 + 강사 프로필 영속화) ─────────────────────────────────────
-// 인증은 Supabase Auth(Google OAuth)가 담당하고, 이 서버는 access token 을
+// 인증은 LibroSpace와 같은 Supabase Auth(이메일/비밀번호)가 담당하고, 이 서버는 access token 을
 // 검증한 뒤 instructor_profiles 테이블의 승인 상태만 관리한다.
 //
 // 필요 환경변수:
 //   SUPABASE_URL              — 프로젝트 URL
 //   SUPABASE_SERVICE_ROLE_KEY — 서버 전용 (토큰 검증·프로필 관리)
-//   SUPABASE_ANON_KEY         — 브라우저 전용 (Google 로그인) — /api/config 로 노출
+//   SUPABASE_ANON_KEY         — 브라우저 전용 (로그인) — /api/config 로 노출
 //
 // 프로필 테이블 생성 SQL (프로젝트 SQL 에디터에서 한 번만 실행):
 //   CREATE TABLE IF NOT EXISTS instructor_profiles (
@@ -185,11 +189,13 @@ app.get('/api/deploy-info', (req, res) => {
 app.get('/api/config', (req, res) => {
   res.json({
     supabaseUrl: SUPABASE_URL || null,
-    supabaseAnonKey: SUPABASE_ANON_KEY || null
+    supabaseAnonKey: SUPABASE_ANON_KEY || null,
+    // 계정은 LibroSpace와 공용이므로 가입·비밀번호 재설정은 그쪽으로 보낸다
+    librospaceUrl: LIBROSPACE_URL
   });
 });
 
-// ── 강사 세션: Google 로그인 직후 호출 — 프로필 조회 (없으면 자동 생성) ───────
+// ── 강사 세션: 로그인 직후 호출 — 프로필 조회 (없으면 자동 생성) ─────────────
 // Authorization: Bearer <supabase access token>
 app.post('/api/instructor/session', async (req, res) => {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
@@ -207,7 +213,8 @@ app.post('/api/instructor/session', async (req, res) => {
     prof = {
       userId: user.id,
       email,
-      name: String(meta.full_name || meta.name || email.split('@')[0]).slice(0, 30),
+      // LibroSpace 가입 시 넣는 nickname 을 우선 사용한다 (Google 계정이면 full_name)
+      name: String(meta.nickname || meta.full_name || meta.name || email.split('@')[0]).slice(0, 30),
       status: isAdmin ? 'approved' : 'pending',   // 관리자 계정은 자동 승인
       createdAt: Date.now(),
       approvedAt: isAdmin ? Date.now() : null
@@ -232,7 +239,7 @@ app.post('/api/instructor/session', async (req, res) => {
   });
 });
 
-// ── 관리자: 로그인 — ADMIN_EMAIL 의 Google 계정으로 인증 ─────────────────────
+// ── 관리자: 로그인 — ADMIN_EMAIL 계정으로 인증 ───────────────────────────────
 app.post('/api/admin/auth', async (req, res) => {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   const user = await getAuthUser(token);
@@ -307,7 +314,7 @@ app.delete('/api/admin/instructors/:id', requireAdmin, async (req, res) => {
     console.error('Supabase delete error:', error.message);
     return res.status(500).json({ ok: false, error: '서버 오류가 발생했습니다.' });
   }
-  // Auth 사용자도 삭제 — 다시 Google 로그인하면 새 pending 프로필로 재신청됨
+  // Auth 사용자도 삭제 — 다시 로그인하면 새 pending 프로필로 재신청됨
   try {
     await supabase.auth.admin.deleteUser(req.params.id);
   } catch (e) {

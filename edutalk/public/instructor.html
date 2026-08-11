@@ -8,7 +8,7 @@
 </head>
 <body>
 
-<!-- ── Screen: Auth (Google 로그인 → 관리자 승인 후 사용) ──────────────────── -->
+<!-- ── Screen: Auth (LibroSpace 계정 로그인 → 관리자 승인 후 사용) ─────────── -->
 <div id="screen-auth" class="screen-wrap">
   <div class="auth-card">
     <div class="logo">
@@ -21,12 +21,22 @@
       로그인 상태 확인 중...
     </div>
 
-    <!-- Google 로그인 -->
+    <!-- LibroSpace 계정(이메일/비밀번호) 로그인 -->
     <div id="auth-login" class="hidden">
       <div id="auth-error" class="text-sm" style="color:var(--color-error);margin-bottom:12px;display:none;"></div>
-      <button class="btn btn-primary" id="google-login-btn">Google 계정으로 로그인</button>
+      <form id="login-form-el">
+        <input type="email" id="login-email" placeholder="이메일" autocomplete="username" required>
+        <input class="mt-12" type="password" id="login-password" placeholder="비밀번호" autocomplete="current-password" required>
+        <button class="btn btn-primary mt-12" type="submit" id="login-btn">로그인</button>
+      </form>
       <p class="text-sm text-gray mt-12" style="text-align:center">
-        첫 로그인 시 강사 등록이 자동으로 신청되며,<br>관리자 승인 후 강의실을 열 수 있습니다.
+        LibroSpace와 <strong>같은 계정</strong>을 사용합니다.<br>
+        첫 로그인 시 강사 등록이 자동 신청되며, 관리자 승인 후 강의실을 열 수 있습니다.
+      </p>
+      <p class="text-sm text-gray mt-12" style="text-align:center">
+        <a id="signup-link" href="#" target="_blank" rel="noopener" style="color:var(--color-text-tertiary)">회원가입</a>
+        &nbsp;·&nbsp;
+        <a id="reset-link" href="#" target="_blank" rel="noopener" style="color:var(--color-text-tertiary)">비밀번호 찾기</a>
       </p>
     </div>
 

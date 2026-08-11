@@ -23,7 +23,7 @@ function dateStr(ts) {
 let adminToken = '';
 let sb = null;   // Supabase 브라우저 클라이언트
 
-// ── Login (Supabase Google OAuth) ──────────────────────────────────────────
+// ── Login (LibroSpace와 같은 Supabase 계정 — 이메일/비밀번호) ───────────────
 function showLoginState(state) {  // 'loading' | 'form'
   $('login-loading').classList.toggle('hidden', state !== 'loading');
   $('login-form').classList.toggle('hidden', state !== 'form');
@@ -35,7 +35,7 @@ async function initAuth() {
     if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
       showLoginState('form');
       showLoginError('서버에 인증이 설정되지 않았습니다.');
-      $('google-login-btn').disabled = true;
+      $('login-btn').disabled = true;
       return;
     }
     sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
@@ -75,12 +75,39 @@ async function tryAdminAuth(accessToken) {
   }
 }
 
-$('google-login-btn').addEventListener('click', async () => {
+$('login-form-el').addEventListener('submit', async (e) => {
+  e.preventDefault();
   if (!sb) return;
-  await sb.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: window.location.origin + '/admin.html' }
-  });
+
+  const email = $('login-email').value.trim();
+  const password = $('login-password').value;
+  if (!email || !password) {
+    showLoginError('이메일과 비밀번호를 입력하세요.');
+    return;
+  }
+
+  const btn = $('login-btn');
+  btn.disabled = true;
+  btn.textContent = '로그인 중...';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) {
+      const msg = String(error.message || '');
+      showLoginError(
+        /invalid login credentials/i.test(msg)
+          ? '이메일 또는 비밀번호가 올바르지 않습니다.'
+          : msg || '로그인에 실패했습니다.'
+      );
+      return;
+    }
+    $('login-password').value = '';
+    await tryAdminAuth(data.session.access_token);
+  } catch (err) {
+    showLoginError('서버 오류가 발생했습니다.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '로그인';
+  }
 });
 
 initAuth();
@@ -100,7 +127,7 @@ async function api(path, opts = {}) {
     ...opts,
     headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken, ...(opts.headers || {}) }
   });
-  // 서버 재시작 등으로 admin 토큰 만료 → Google 재로그인 유도
+  // 서버 재시작 등으로 admin 토큰 만료 → 재로그인 유도
   if (res.status === 401) {
     adminToken = '';
     $('screen-admin').classList.add('hidden');

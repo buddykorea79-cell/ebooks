@@ -8,7 +8,7 @@
 </head>
 <body>
 
-<!-- ── Screen: Admin Login (Google) ──────────────────────────────────────── -->
+<!-- ── Screen: Admin Login (LibroSpace 계정) ─────────────────────────────── -->
 <div id="screen-login" class="screen-wrap">
   <div class="auth-card">
     <div class="logo">
@@ -20,8 +20,14 @@
     </div>
     <div id="login-form" class="hidden">
       <div id="login-error" class="text-sm" style="color:var(--color-error);margin-bottom:12px;display:none;"></div>
-      <button class="btn btn-primary" id="google-login-btn">Google 계정으로 로그인</button>
-      <p class="text-sm text-gray mt-12" style="text-align:center">관리자 Google 계정으로만 접근할 수 있습니다.</p>
+      <form id="login-form-el">
+        <input type="email" id="login-email" placeholder="이메일" autocomplete="username" required>
+        <input class="mt-12" type="password" id="login-password" placeholder="비밀번호" autocomplete="current-password" required>
+        <button class="btn btn-primary mt-12" type="submit" id="login-btn">로그인</button>
+      </form>
+      <p class="text-sm text-gray mt-12" style="text-align:center">
+        LibroSpace와 같은 계정을 사용합니다.<br>지정된 관리자 계정으로만 접근할 수 있습니다.
+      </p>
     </div>
     <div class="mt-12 text-sm text-gray" style="text-align:center">
       <a href="/" style="color:var(--color-text-tertiary)">← 홈으로</a>
