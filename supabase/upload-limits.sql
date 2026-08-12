@@ -1,14 +1,16 @@
 -- =============================================================
--- 업로드 크기 제한 일원화 — HTML · MD · PDF 를 하나의 설정으로 관리
+-- 업로드 일원화 — HTML · MD · PDF 를 모두 Cloudflare R2 로, 한도도 하나로
 -- Supabase SQL Editor에서 전체를 한 번에 실행하세요.
 -- (site-settings-extra.sql 실행 이후에 실행해야 합니다)
 --
--- 이전에는 PDF만 site_settings.pdf_max_mb로 제한하고 HTML·MD는 코드에
--- 5MB가 박혀 있었습니다. 이제 세 형식 모두 upload_max_mb 하나를 따릅니다.
+-- 바뀌는 점
+--   1) 업로드 상한을 site_settings.upload_max_mb 하나로 통합 (기본 50MB)
+--   2) 단일 파일(HTML·MD)도 PDF처럼 R2에 올리고, DB에는 주소만 저장
+--      (예전에는 파일 내용을 books.single_content 텍스트로 넣었습니다)
 -- =============================================================
 
 -- -------------------------------------------------------------
--- 1. 통합 업로드 상한 (MB) — 기본 50
+-- 1. 통합 업로드 상한 (MB) — HTML · MD · PDF 공통, 기본 50
 -- -------------------------------------------------------------
 
 alter table public.site_settings
@@ -37,57 +39,33 @@ alter table public.site_settings
   check (upload_max_mb between 1 and 500);
 
 -- -------------------------------------------------------------
--- 2. HTML·MD 본문에도 같은 상한을 강제
+-- 2. 단일 파일(HTML·MD)의 R2 주소
 --
---    PDF는 서명 URL을 발급하는 서버(api/r2-upload-url.ts)가 크기를 다시
---    확인하지만, HTML·MD는 브라우저가 books.single_content에 바로 쓴다.
---    화면 검사만으로는 우회할 수 있으므로 DB에서 최종 판단한다.
+--    PDF의 pdf_url / pdf_name / pdf_size 와 같은 구조다.
+--    파일 본체는 Cloudflare R2에 있고 DB에는 주소·이름·크기만 둔다.
 -- -------------------------------------------------------------
 
-create or replace function public.enforce_single_content_size()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  limit_mb   integer;
-  size_bytes integer;
-begin
-  if new.single_content is null then
-    return new;
-  end if;
+alter table public.books add column if not exists single_url  text;
+alter table public.books add column if not exists single_name text;
+alter table public.books add column if not exists single_size bigint;
 
-  -- 내용이 그대로면 검사하지 않는다.
-  -- (상한을 낮춘 뒤 기존 도서의 제목만 고치는 것까지 막지 않기 위함)
-  if tg_op = 'UPDATE' and new.single_content is not distinct from old.single_content then
-    return new;
-  end if;
+-- books.single_content 는 지우지 않는다.
+-- 예전에 텍스트로 올려 둔 도서가 그대로 열리도록 뷰어가 예비로 읽는다.
+-- (새로 올리는 파일은 R2로 가고 single_content 는 비워진다)
 
-  select s.upload_max_mb into limit_mb from public.site_settings s where s.id = 1;
-  if limit_mb is null then
-    limit_mb := 50;
-  end if;
-
-  size_bytes := octet_length(new.single_content);
-  if size_bytes > limit_mb * 1024 * 1024 then
-    raise exception
-      '업로드 한도를 초과했습니다 (% MB / 최대 % MB)',
-      round(size_bytes / 1048576.0, 1), limit_mb
-      using errcode = 'check_violation';
-  end if;
-
-  return new;
-end;
-$$;
+-- -------------------------------------------------------------
+-- 3. 이전 버전에서 만들었던 크기 검사 트리거 제거
+--
+--    단일 파일이 DB에 저장되던 시절의 장치다. 이제 파일은 R2로 가고
+--    크기는 서명 URL을 발급하는 서버(api/r2-upload-url.ts)가 확인한다.
+--    (이 스크립트의 이전 버전을 실행하지 않았다면 아무 일도 일어나지 않는다)
+-- -------------------------------------------------------------
 
 drop trigger if exists books_single_content_size on public.books;
-create trigger books_single_content_size
-  before insert or update on public.books
-  for each row execute function public.enforce_single_content_size();
+drop function if exists public.enforce_single_content_size();
 
 -- -------------------------------------------------------------
--- 3. 확인
+-- 4. 확인
 --    (컬럼 구성은 앞선 마이그레이션 실행 여부에 따라 다르므로 전체를 본다)
 -- -------------------------------------------------------------
 

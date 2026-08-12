@@ -28,7 +28,10 @@ export async function searchBooks(q: string): Promise<Book[]> {
   const [byTitle, byDesc, bySingle] = await Promise.all([
     base().ilike('title', pattern),
     base().ilike('description', pattern),
-    // 단일 파일 도서의 본문 — single-file.sql 실행 전에는 컬럼이 없으므로 에러를 무시
+    // 단일 파일 도서의 본문.
+    // upload-limits.sql 이후로 새 파일은 R2에 저장되어 DB에 본문이 없으므로,
+    // 여기 걸리는 것은 예전에 DB로 올려 둔 도서뿐이다(제목·설명 검색은 그대로 동작).
+    // single-file.sql 실행 전에는 컬럼 자체가 없으므로 에러를 무시한다.
     base().ilike('single_content', pattern),
   ])
   if (byTitle.error) throw byTitle.error

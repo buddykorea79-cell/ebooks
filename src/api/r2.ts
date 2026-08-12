@@ -8,12 +8,14 @@ import { supabase } from '../lib/supabase'
  * 큰 파일을 통과시킬 수 없기 때문이다.
  */
 
-export type UploadKind = 'pdf' | 'image'
+export type UploadKind = 'pdf' | 'single' | 'image'
 
 interface SignedUpload {
   uploadUrl: string
   publicUrl: string
   key: string
+  /** R2에 저장할 Content-Type (서버가 정해 준다) */
+  contentType?: string
   error?: string
 }
 
@@ -59,11 +61,16 @@ async function requestUploadUrl(
 }
 
 /** R2에 직접 PUT. 진행률을 받기 위해 fetch 대신 XHR을 쓴다 */
-function putToR2(uploadUrl: string, file: File, onProgress?: (percent: number) => void) {
+function putToR2(
+  uploadUrl: string,
+  file: File,
+  contentType: string,
+  onProgress?: (percent: number) => void,
+) {
   return new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open('PUT', uploadUrl, true)
-    xhr.setRequestHeader('Content-Type', file.type)
+    xhr.setRequestHeader('Content-Type', contentType)
     // 키가 매번 달라 같은 주소가 다른 내용을 가리키는 일이 없으므로 길게 캐시해도 안전하다
     xhr.setRequestHeader('Cache-Control', 'public, max-age=31536000, immutable')
     xhr.upload.onprogress = (e) => {
@@ -104,8 +111,30 @@ export async function uploadToR2(
   onProgress?: (percent: number) => void,
 ): Promise<UploadResult> {
   const signed = await requestUploadUrl(kind, bookId, file)
-  await putToR2(signed.uploadUrl, file, onProgress)
+  // 형식이 애매한 파일(.md는 브라우저가 빈 문자열로 주기도 한다)은 서버가 정한 값을 쓴다
+  await putToR2(signed.uploadUrl, file, signed.contentType || file.type || 'application/octet-stream', onProgress)
   return { url: signed.publicUrl, name: file.name, size: file.size }
+}
+
+/**
+ * R2에 올려 둔 텍스트 파일(HTML·MD)의 내용을 읽는다.
+ *
+ * 버킷 CORS의 AllowedMethods에 GET이 있어야 한다(.env.example 참고).
+ * 없으면 브라우저가 응답을 막아 "불러오지 못했습니다"로 보인다.
+ */
+export async function fetchTextFromR2(url: string): Promise<string> {
+  let response: Response
+  try {
+    response = await fetch(url)
+  } catch {
+    throw new Error(
+      '파일을 불러오지 못했습니다. R2 버킷의 CORS 설정에 이 사이트 주소와 GET이 포함되어 있는지 확인하세요.',
+    )
+  }
+  if (!response.ok) {
+    throw new Error(`파일을 불러오지 못했습니다 (HTTP ${response.status}).`)
+  }
+  return await response.text()
 }
 
 /** 바이트를 읽기 쉬운 단위로 */

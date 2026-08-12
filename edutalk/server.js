@@ -336,6 +336,24 @@ function resolveSender(room, socketId, role) {
 // ── Express middleware ────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ── supabase-js 브라우저 번들 ────────────────────────────────────────────────
+// CDN(jsdelivr) 대신 서버가 직접 내려 준다.
+//
+// 예전에는 로그인 화면이 아래 주소를 불렀다.
+//   https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js
+// 그런데 supabase-js v2 패키지에는 'supabase.min.js'가 없다(umd 폴더에 supabase.js 하나뿐).
+// 그래서 window.supabase 가 만들어지지 않았고, 로그인 버튼을 눌러도
+// `if (!sb) return;` 에 걸려 아무 반응이 없었다 — LibroSpace에서는 되는 계정이
+// EduTalk에서만 안 되는 것처럼 보인 원인이다.
+//
+// 서버가 이미 의존성으로 갖고 있는 파일을 그대로 주면 버전도 서버와 일치하고,
+// CDN 차단·오프라인 환경에서도 동작한다. (socket.io 클라이언트와 같은 방식)
+const SUPABASE_UMD_PATH = require.resolve('@supabase/supabase-js/dist/umd/supabase.js');
+app.get('/vendor/supabase.js', (req, res) => {
+  res.type('application/javascript');
+  res.sendFile(SUPABASE_UMD_PATH);
+});
 app.use('/uploads', express.static(uploadsDir, {
   setHeaders: (res, filePath) => {
     // 업로드된 HTML/SVG/JS가 same-origin 으로 실행되는 것(stored XSS) 방지 — 다운로드로 강제

@@ -1,8 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
-import type { Book, ContentFormat } from '../types/database'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { Book } from '../types/database'
 import { DEFAULT_UPLOAD_MAX_MB, resolveUploadMaxMb } from '../types/database'
 import { updateBook } from '../api/books'
 import { formatBytes } from '../api/r2'
+import {
+  formatFromFileName,
+  hasSingleContent,
+  loadSingleContent,
+  uploadBookSingleFile,
+} from '../api/single'
 import { fetchSiteSettings } from '../api/settings'
 import { renderMarkdown, splitMarkdownSections } from '../lib/markdown'
 import { buildInjectedCss, openContentPreview } from '../lib/preview'
@@ -14,14 +20,27 @@ interface SingleContentTabProps {
   onSaved: (book: Book) => void
 }
 
-/** 단일 파일 모드: 완성된 HTML/MD 파일 하나를 올려 도서 본문으로 사용 */
+/**
+ * 단일 파일 모드: 완성된 HTML/MD 파일 하나를 도서 본문으로 사용.
+ *
+ * 파일은 PDF와 마찬가지로 Cloudflare R2에 올라가고(브라우저 → R2 직접 전송),
+ * DB에는 주소만 저장한다. 미리보기는 그 주소에서 내용을 받아 온다.
+ */
 export default function SingleContentTab({ book, onSaved }: SingleContentTabProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
+  const [percent, setPercent] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
-  // PDF와 같은 상한을 쓴다 (관리자 화면에서 함께 관리). 최종 판단은 DB 트리거가 한다
+  // PDF와 같은 상한 (관리자 화면에서 함께 관리). 최종 판단은 서버가 한다
   const [maxMb, setMaxMb] = useState(DEFAULT_UPLOAD_MAX_MB)
+  // R2에서 받아 온 본문 (미리보기용)
+  const [content, setContent] = useState<string | null>(null)
+  const [loadingContent, setLoadingContent] = useState(false)
+
+  const isMarkdown = (book.content_format ?? 'html') === 'markdown'
+  const uploaded = hasSingleContent(book)
+  const sections = content && isMarkdown ? splitMarkdownSections(content) : []
 
   useEffect(() => {
     fetchSiteSettings()
@@ -31,9 +50,25 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
       })
   }, [])
 
-  const content = book.single_content ?? null
-  const isMarkdown = (book.content_format ?? 'html') === 'markdown'
-  const sections = content && isMarkdown ? splitMarkdownSections(content) : []
+  const reloadContent = useCallback(async (target: Book) => {
+    if (!hasSingleContent(target)) {
+      setContent(null)
+      return
+    }
+    setLoadingContent(true)
+    try {
+      setContent(await loadSingleContent(target))
+    } catch (err) {
+      setContent(null)
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLoadingContent(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void reloadContent(book)
+  }, [book, reloadContent])
 
   async function handleFile(file: File | undefined) {
     if (!file) return
@@ -50,10 +85,8 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
       return
     }
 
-    let format: ContentFormat
-    if (/\.(md|markdown)$/i.test(file.name)) format = 'markdown'
-    else if (/\.(html?|xhtml)$/i.test(file.name)) format = 'html'
-    else {
+    const format = formatFromFileName(file.name)
+    if (!format) {
       setError('HTML(.html) 또는 마크다운(.md) 파일만 업로드할 수 있습니다.')
       return
     }
@@ -65,19 +98,25 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
     }
 
     setBusy(true)
+    setPercent(0)
     try {
-      const text = await file.text()
+      const result = await uploadBookSingleFile(book.id, file, setPercent)
       const updated = await updateBook(book.id, {
-        single_content: text,
+        single_url: result.url,
+        single_name: result.name,
+        single_size: result.size,
         content_format: format,
+        // 예전 방식으로 DB에 들어 있던 본문은 비운다 (두 벌이 남지 않도록)
+        single_content: null,
       })
       onSaved(updated)
       setSaved(true)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (msg.includes('업로드 한도')) {
-        // upload-limits.sql의 트리거가 막은 경우 (화면 검사를 우회했거나 그 사이 한도가 낮아짐)
-        setError(msg)
+      if (msg.includes('single_url') || msg.includes('single_size')) {
+        setError(
+          '저장에 실패했습니다. supabase/upload-limits.sql을 SQL Editor에서 실행했는지 확인하세요.',
+        )
       } else if (msg.includes('single_content') || msg.includes('source_mode')) {
         setError(
           '저장에 실패했습니다. supabase/single-file.sql을 SQL Editor에서 실행했는지 확인하세요.',
@@ -87,17 +126,29 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
       }
     } finally {
       setBusy(false)
+      setPercent(0)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
   async function handleRemove() {
-    if (!content) return
-    if (!window.confirm('업로드된 콘텐츠를 삭제할까요? 되돌릴 수 없습니다.')) return
+    if (!uploaded) return
+    if (
+      !window.confirm(
+        '업로드된 콘텐츠를 연결 해제할까요?\n도서에서는 사라지지만 R2에 올라간 파일 자체는 남습니다.',
+      )
+    ) {
+      return
+    }
     setBusy(true)
     setError(null)
     try {
-      const updated = await updateBook(book.id, { single_content: null })
+      const updated = await updateBook(book.id, {
+        single_url: null,
+        single_name: null,
+        single_size: null,
+        single_content: null,
+      })
       onSaved(updated)
       setSaved(false)
     } catch (err) {
@@ -113,7 +164,9 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
       <p className="text-sm text-gray-500">
         완성된 <strong>HTML(.html)</strong> 또는 <strong>마크다운(.md)</strong> 파일 하나를
         올리면 그대로 도서 본문이 됩니다. HTML은 메뉴 없이 전체 화면으로, 마크다운은 제목(H1·H2)
-        기준으로 목차가 자동 생성됩니다. 현재 한 파일당{' '}
+        기준으로 목차가 자동 생성됩니다. 파일은{' '}
+        <strong className="font-medium text-gray-700">Cloudflare R2</strong>에 저장되며
+        브라우저에서 직접 전송됩니다. 현재 한 파일당{' '}
         <strong className="font-medium text-gray-700">최대 {maxMb}MB</strong>까지 올릴 수 있습니다
         (관리자 설정 — PDF 업로드와 같은 한도).
       </p>
@@ -126,9 +179,9 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
       <input
         ref={fileInputRef}
         type="file"
-        accept=".html,.htm,.xhtml,.md,.markdown"
+        accept=".html,.htm,.xhtml,.md,.markdown,text/html,text/markdown"
         className="hidden"
-        onChange={(e) => handleFile(e.target.files?.[0])}
+        onChange={(e) => void handleFile(e.target.files?.[0])}
       />
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -138,8 +191,18 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
           disabled={busy}
           className="rounded bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
         >
-          {busy ? '처리 중…' : content ? '파일 다시 업로드' : '파일 업로드'}
+          {busy ? '올리는 중…' : uploaded ? '파일 다시 업로드' : '파일 업로드'}
         </button>
+        {book.single_url && (
+          <a
+            href={book.single_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+          >
+            원본 파일 열기 ↗
+          </a>
+        )}
         {content && (
           <button
             type="button"
@@ -159,18 +222,32 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
             새 창 미리보기 ↗
           </button>
         )}
-        {content && (
+        {uploaded && (
           <button
             type="button"
             onClick={handleRemove}
             disabled={busy}
             className="rounded border border-red-300 px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
           >
-            콘텐츠 삭제
+            연결 해제
           </button>
         )}
         {saved && <span className="text-xs font-medium text-emerald-600">저장되었습니다 ✓</span>}
       </div>
+
+      {busy && (
+        <div className="mt-4 max-w-3xl">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+            <div
+              className="h-full rounded-full bg-brand-600 transition-[width] duration-150"
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+          <p className="mt-1.5 text-xs text-gray-500">
+            {percent < 100 ? `전송 중 ${percent}%` : '마무리하는 중…'}
+          </p>
+        </div>
+      )}
 
       {error && (
         <div className="mt-3 max-w-3xl">
@@ -178,13 +255,21 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
         </div>
       )}
 
-      {content && (
+      {uploaded && (
         <div className="mt-4 text-sm text-gray-600">
-          현재 콘텐츠:{' '}
-          <span className="font-medium">{isMarkdown ? '마크다운' : 'HTML'}</span>,{' '}
-          {content.length.toLocaleString()}자
+          현재 콘텐츠: <span className="font-medium">{isMarkdown ? '마크다운' : 'HTML'}</span>
+          {book.single_name && <> · {book.single_name}</>}
+          {typeof book.single_size === 'number' && <> · {formatBytes(book.single_size)}</>}
+          {content && <> · {content.length.toLocaleString()}자</>}
+          {!book.single_url && (
+            <span className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-700">
+              예전 방식(DB 저장) — 다시 업로드하면 R2로 옮겨집니다
+            </span>
+          )}
         </div>
       )}
+
+      {loadingContent && <p className="mt-4 text-sm text-gray-400">내용을 불러오는 중…</p>}
 
       {content && isMarkdown && (
         <div className="mt-4 max-w-3xl rounded-lg border border-gray-200 bg-white p-4">
@@ -215,7 +300,7 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
         </div>
       )}
 
-      {!content && (
+      {!uploaded && !busy && (
         <p className="mt-6 text-gray-400">
           아직 업로드된 콘텐츠가 없습니다. 파일을 올리면 미리보기가 표시됩니다.
         </p>

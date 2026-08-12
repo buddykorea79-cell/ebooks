@@ -31,7 +31,33 @@ const KINDS = {
     // 실제 상한은 site_settings.upload_max_mb가 결정한다 (아래에서 덮어씀)
     maxBytes: DEFAULT_UPLOAD_MAX_MB * 1024 * 1024,
     types: { 'application/pdf': 'pdf' } as Record<string, string>,
+    // 확장자로도 판정한다 (브라우저가 Content-Type을 비워 보내는 경우가 있다)
+    exts: { pdf: 'pdf' } as Record<string, string>,
+    /** R2에 저장할 Content-Type — 직접 열었을 때 제대로 보이도록 서버가 정한다 */
+    storeAs: { pdf: 'application/pdf' } as Record<string, string>,
     reject: 'PDF 파일만 올릴 수 있습니다.',
+  },
+  /** 단일 파일 도서 — 완성된 HTML 또는 마크다운 한 개 */
+  single: {
+    folder: 'single',
+    maxBytes: DEFAULT_UPLOAD_MAX_MB * 1024 * 1024,
+    types: {
+      'text/html': 'html',
+      'application/xhtml+xml': 'html',
+      'text/markdown': 'md',
+      'text/x-markdown': 'md',
+    } as Record<string, string>,
+    // .md는 OS에 따라 Content-Type이 비거나 application/octet-stream으로 온다.
+    // 확장자가 더 믿을 만하므로 이쪽을 먼저 본다.
+    exts: { html: 'html', htm: 'html', xhtml: 'html', md: 'md', markdown: 'md' } as Record<
+      string,
+      string
+    >,
+    storeAs: {
+      html: 'text/html; charset=utf-8',
+      md: 'text/markdown; charset=utf-8',
+    } as Record<string, string>,
+    reject: 'HTML(.html) 또는 마크다운(.md) 파일만 올릴 수 있습니다.',
   },
   image: {
     folder: 'images',
@@ -44,11 +70,43 @@ const KINDS = {
       'image/webp': 'webp',
       'image/avif': 'avif',
     } as Record<string, string>,
+    exts: {
+      png: 'png',
+      jpg: 'jpg',
+      jpeg: 'jpg',
+      gif: 'gif',
+      webp: 'webp',
+      avif: 'avif',
+    } as Record<string, string>,
+    storeAs: {
+      png: 'image/png',
+      jpg: 'image/jpeg',
+      gif: 'image/gif',
+      webp: 'image/webp',
+      avif: 'image/avif',
+    } as Record<string, string>,
     reject: 'PNG, JPG, GIF, WebP, AVIF 이미지만 올릴 수 있습니다.',
   },
 } as const
 
 type Kind = keyof typeof KINDS
+
+/** 관리자 상한(upload_max_mb)을 따르는 종류 — 이미지는 고정 한도를 쓴다 */
+const ADMIN_LIMITED: Kind[] = ['pdf', 'single']
+
+/**
+ * 확장자 → Content-Type 순으로 판정한다.
+ * 마크다운처럼 브라우저가 형식을 못 알아보는 파일이 있어 확장자를 우선한다.
+ */
+function resolveExt(kind: Kind, contentType: string, fileName: string): string | null {
+  const rule = KINDS[kind]
+  const dotted = /\.([a-zA-Z0-9]+)$/.exec(fileName)
+  const byExt = dotted ? (rule.exts as Record<string, string>)[dotted[1].toLowerCase()] : undefined
+  if (byExt) return byExt
+  // Content-Type에 붙는 '; charset=utf-8' 같은 파라미터는 떼고 본다
+  const bare = contentType.split(';')[0].trim().toLowerCase()
+  return (rule.types as Record<string, string>)[bare] ?? null
+}
 
 interface VercelRequest {
   method?: string
@@ -169,7 +227,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(400).json({ error: '도서 정보가 없습니다.' })
     return
   }
-  const ext = rule.types[contentType]
+  const ext = resolveExt(kind, contentType, fileName)
   if (!ext) {
     res.status(400).json({ error: rule.reject })
     return
@@ -179,8 +237,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
   // 이미지는 고정 한도라 여기서 바로 거른다.
-  // PDF만 관리자 설정을 읽어야 해서 로그인 확인 뒤로 미룬다.
-  if (kind !== 'pdf' && size > rule.maxBytes) {
+  // PDF·단일 파일은 관리자 설정을 읽어야 해서 로그인 확인 뒤로 미룬다.
+  if (!ADMIN_LIMITED.includes(kind) && size > rule.maxBytes) {
     res.status(400).json({
       error: `파일이 너무 큽니다. ${Math.round(rule.maxBytes / 1024 / 1024)}MB 이하만 올릴 수 있습니다.`,
     })
@@ -222,10 +280,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  // --- PDF 크기 제한 확인 -------------------------------------------------
-  // 상한은 관리자가 정한다(site_settings.upload_max_mb — HTML·MD와 공통).
+  // --- 크기 제한 확인 (PDF · HTML · MD 공통) -------------------------------
+  // 상한은 관리자가 정한다(site_settings.upload_max_mb).
   // 화면에서도 미리 걸러 주지만 그건 우회할 수 있으므로 최종 판단은 여기서 한다.
-  if (kind === 'pdf') {
+  if (ADMIN_LIMITED.includes(kind)) {
     let limitMb = DEFAULT_UPLOAD_MAX_MB
     // upload-limits.sql 실행 전 배포본에서도 죽지 않도록 컬럼을 지정하지 않고 전체를 읽는다
     // (없는 컬럼을 select하면 PostgREST가 42703으로 실패한다)
@@ -273,6 +331,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       uploadUrl: signed.url,
       publicUrl: `${publicBase}/${key}`,
       key,
+      // 브라우저가 PUT할 때 쓸 Content-Type. 서명은 쿼리스트링 방식이라 헤더가
+      // 서명에 포함되지 않으므로, 형식이 애매한 파일(.md 등)도 서버가 정해 줄 수 있다.
+      contentType: (rule.storeAs as Record<string, string>)[ext] ?? 'application/octet-stream',
       expiresIn: SIGNED_URL_TTL_SEC,
     })
   } catch (err) {

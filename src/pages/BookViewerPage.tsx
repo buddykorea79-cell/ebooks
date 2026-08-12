@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Book, BookMenu } from '../types/database'
 import { fetchBook } from '../api/books'
 import { fetchMenus } from '../api/menus'
+import { hasSingleContent, loadSingleContent } from '../api/single'
 import { buildMenuTree } from '../lib/menuTree'
 import { MARKDOWN_BASE_CSS, renderMarkdown, splitMarkdownSections } from '../lib/markdown'
 import ErrorAlert from '../components/ErrorAlert'
@@ -18,6 +19,10 @@ export default function BookViewerPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  // 단일 파일 모드의 본문 — R2에 있는 파일을 받아 온다 (예전 도서는 DB 값)
+  const [singleText, setSingleText] = useState<string | null>(null)
+  const [singleLoading, setSingleLoading] = useState(false)
+  const [singleError, setSingleError] = useState<string | null>(null)
 
   const isSingle = book !== null && (book.source_mode ?? 'menu') === 'single'
   const isPdf = book !== null && book.source_mode === 'pdf'
@@ -44,10 +49,40 @@ export default function BookViewerPage() {
     load()
   }, [bookId])
 
+  // 단일 파일 본문 가져오기 — 파일은 Cloudflare R2에 있다
+  useEffect(() => {
+    if (!book || (book.source_mode ?? 'menu') !== 'single') {
+      setSingleText(null)
+      return
+    }
+    if (!hasSingleContent(book)) {
+      setSingleText(null)
+      return
+    }
+    let cancelled = false
+    setSingleLoading(true)
+    setSingleError(null)
+    loadSingleContent(book)
+      .then((text) => {
+        if (!cancelled) setSingleText(text)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setSingleText(null)
+        setSingleError(err instanceof Error ? err.message : String(err))
+      })
+      .finally(() => {
+        if (!cancelled) setSingleLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [book])
+
   // 단일 마크다운 파일: H1·H2 기준으로 분할한 섹션을 가상 메뉴 트리로 사용
   const virtualMenus = useMemo<BookMenu[] | null>(() => {
     if (!book || !isSingle || !isMarkdown) return null
-    return splitMarkdownSections(book.single_content ?? '').map((s, i) => ({
+    return splitMarkdownSections(singleText ?? '').map((s, i) => ({
       id: s.id,
       book_id: book.id,
       parent_id: s.parentId,
@@ -56,7 +91,7 @@ export default function BookViewerPage() {
       html_content: s.content,
       updated_at: '',
     }))
-  }, [book, isSingle, isMarkdown])
+  }, [book, isSingle, isMarkdown, singleText])
 
   const effectiveMenus = virtualMenus ?? menus
 
@@ -164,14 +199,21 @@ export default function BookViewerPage() {
           <span className="min-w-0 truncate text-sm font-semibold">{book.title}</span>
         </div>
         <main className="bg-white">
-          {book.single_content ? (
+          {singleLoading && <p className="px-6 py-10 text-gray-500">본문을 불러오는 중…</p>}
+          {!singleLoading && singleError && (
+            <div className="px-6 py-10">
+              <ErrorAlert message={singleError} />
+            </div>
+          )}
+          {!singleLoading && !singleError && singleText && (
             <HtmlViewer
               menuId="single"
-              html={book.single_content}
+              html={singleText}
               injectedCss={book.css_apply_to_content ? book.custom_css : null}
               minHeight={400}
             />
-          ) : (
+          )}
+          {!singleLoading && !singleError && !singleText && (
             <p className="px-6 py-10 text-gray-500">아직 업로드된 콘텐츠가 없습니다.</p>
           )}
         </main>
@@ -237,7 +279,10 @@ export default function BookViewerPage() {
       </div>
 
       <main className="min-w-0 flex-1 px-4 py-5 sm:px-6">
-        {effectiveMenus !== null && effectiveMenus.length === 0 && (
+        {isSingle && singleLoading && <p className="text-gray-500">본문을 불러오는 중…</p>}
+        {isSingle && !singleLoading && singleError && <ErrorAlert message={singleError} />}
+
+        {!singleLoading && !singleError && effectiveMenus !== null && effectiveMenus.length === 0 && (
           <p className="text-gray-500">{emptyMessage}</p>
         )}
 

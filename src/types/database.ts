@@ -108,7 +108,17 @@ export interface Book {
   content_format?: ContentFormat
   /** single-file.sql 실행 전에는 컬럼이 없어 undefined → 'menu'로 간주 */
   source_mode?: SourceMode
-  /** 단일 파일 모드의 원문 (HTML 또는 마크다운) */
+  /**
+   * 단일 파일 모드의 파일 주소 (Cloudflare R2). upload-limits.sql 실행 전에는 undefined.
+   * PDF와 같은 구조로, 파일 본체는 R2에 있고 DB에는 주소만 둔다.
+   */
+  single_url?: string | null
+  single_name?: string | null
+  single_size?: number | null
+  /**
+   * @deprecated R2 업로드(single_url)로 대체됨.
+   * 예전에 본문을 DB에 직접 넣어 둔 도서를 계속 열기 위해 남겨 둔다.
+   */
   single_content?: string | null
   /** PDF 모드의 파일 주소 (Cloudflare R2). pdf-mode.sql 실행 전에는 컬럼이 없어 undefined */
   pdf_url?: string | null

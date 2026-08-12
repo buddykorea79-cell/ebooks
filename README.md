@@ -244,10 +244,11 @@ Claude 등 AI가 만든 **아티팩트 HTML을 `<!doctype html>`부터 통째로
 
 | 올리는 것 | 저장소 | 무료 한도 | 이유 |
 |-----------|--------|-----------|------|
-| 도서 본문(HTML·MD) | **Postgres** `book_menus.html_content`, `books.single_content` | DB 500MB | 텍스트라 DB가 가장 싸고 검색도 됨 |
+| 메뉴 구성 도서의 본문 | **Postgres** `book_menus.html_content` | DB 500MB | 꼭지별로 편집·검색되는 텍스트라 DB가 맞음 |
 | 표지 이미지 | Supabase Storage `covers` | 1GB | 도서당 1장, 작고 이미 쓰던 경로 |
 | **본문 이미지** | **Cloudflare R2** | 10GB + **전송량 무료** | 여러 장이 반복 열람됨 |
 | **PDF 도서** | **Cloudflare R2** | (같은 버킷) | 교재는 크고 반복 열람이 많아 egress가 비용을 좌우 |
+| **단일 파일 도서(HTML·MD)** | **Cloudflare R2** | (같은 버킷) | 완성된 파일 하나를 그대로 쓰므로 PDF와 같은 경로가 자연스러움 |
 
 #### 왜 R2인가
 
@@ -270,6 +271,7 @@ PDF와 본문 이미지가 **같은 버킷**을 쓰고, 서버가 `kind`로 폴�
 | kind | 폴더 | 허용 형식 | 최대 |
 |------|------|-----------|------|
 | `pdf` | `{uid}/pdf/{bookId}/` | application/pdf | 관리자 설정 (기본 50MB, 상한 500MB) |
+| `single` | `{uid}/single/{bookId}/` | HTML(.html·.htm·.xhtml), 마크다운(.md·.markdown) | 관리자 설정 (PDF와 동일) |
 | `image` | `{uid}/images/{bookId}/` | PNG·JPG·GIF·WebP·AVIF | 10MB 고정 |
 
 SVG는 양쪽 다 막습니다 — 공개 버킷이라 URL을 직접 열면 스크립트가 실행될 수 있습니다.
@@ -295,22 +297,30 @@ R2는 같은 키로 PUT하면 **조용히 덮어씁니다.** 그래서 키에 UU
 
 #### 업로드 크기 제한은 한 곳에서
 
-**HTML · 마크다운 · PDF 모두 같은 상한을 씁니다.** 관리자 화면 → 기능 설정의
+**HTML · 마크다운 · PDF 모두 R2로 가고, 같은 상한을 씁니다.** 관리자 화면 → 기능 설정의
 '파일 업로드 최대 크기' 하나(`site_settings.upload_max_mb`, 기본 50MB)로 세 형식을 함께
-관리합니다. 화면에서 미리 걸러 주지만 그건 우회할 수 있으므로, 저장 직전에 한 번 더 봅니다.
+관리합니다. 화면에서 미리 걸러 주지만 그건 우회할 수 있으므로, 서명 URL을 발급하기 전에
+서버가 다시 확인합니다.
 
-| 형식 | 가는 곳 | 화면 검사 | 최종 검사 |
-|------|---------|-----------|-----------|
-| PDF | Cloudflare R2 | `PdfUploadTab` | `api/r2-upload-url.ts` — 서명 URL 발급 전에 확인 |
-| HTML · MD | Postgres `books.single_content` | `SingleContentTab` | `books` 트리거 `enforce_single_content_size` |
+| kind | 형식 | DB에 저장되는 것 |
+|------|------|------------------|
+| `pdf` | .pdf | `books.pdf_url / pdf_name / pdf_size` |
+| `single` | .html · .htm · .xhtml · .md · .markdown | `books.single_url / single_name / single_size` |
 
-HTML·MD는 서버 함수를 거치지 않고 브라우저가 DB에 바로 쓰기 때문에, 최종 판단을
-DB 트리거가 합니다(`upload-limits.sql`). 상한을 낮춰도 기존 도서의 다른 항목은 그대로
-수정할 수 있게, 본문이 실제로 바뀔 때만 검사합니다.
+마크다운은 브라우저가 Content-Type을 비워 보내거나 `application/octet-stream`으로 보내는
+일이 많아, 서버가 **확장자를 먼저** 보고 형식을 정합니다. R2에 저장할 Content-Type도
+서버가 정해서 내려 주므로(`text/markdown; charset=utf-8` 등) 파일을 직접 열어도 제대로
+보입니다.
 
-> HTML·MD는 텍스트로 DB에 들어갑니다. 상한을 크게 잡을 수는 있지만, 수십 MB짜리 본문은
-> 저장·열람이 눈에 띄게 느려집니다. 그만큼 큰 교재라면 PDF 모드가 낫습니다.
-> 본문 이미지(10MB)는 이 설정과 별개의 고정 한도입니다.
+> **뷰어는 R2에서 본문을 내려받아 렌더링합니다.** 그래서 버킷 CORS의 `AllowedMethods`에
+> **GET이 반드시 있어야 합니다**(.env.example의 예시에 포함되어 있습니다). 없으면 도서를 열 때
+> "파일을 불러오지 못했습니다"가 나옵니다.
+>
+> 예전에 `books.single_content`(DB 텍스트)로 올려 둔 도서는 그대로 열립니다. 뷰어가
+> `single_url`이 없으면 `single_content`를 읽습니다. 다시 업로드하면 R2로 옮겨집니다.
+>
+> 전체 검색은 제목·설명과 메뉴 본문을 훑습니다. 단일 파일 본문은 DB에 없으므로 검색
+> 대상이 아닙니다(예전 방식으로 올린 도서만 검색됩니다).
 
 ### 2-9. EduTalk (교육생과 대화하기)
 
@@ -369,7 +379,7 @@ EduTalk 서버가 검증한 뒤 강사 승인 상태를 확인합니다. 그래�
 | 10 | `categories-ai-it.sql` | 분류를 AI·IT 체계로 재구성 (기존 도서를 옮긴 뒤 빈 분류만 삭제) |
 | 11 | `pdf-mode.sql` | `source_mode`에 `'pdf'` 추가 + `books.pdf_url / pdf_name / pdf_size` |
 | 12 | `site-settings-extra.sql` | `site_settings.pdf_max_mb`(기본 50) + `site_settings.edutalk_url` |
-| 13 | `upload-limits.sql` | 업로드 상한 일원화 — `site_settings.upload_max_mb`(기본 50, 기존 `pdf_max_mb` 값 승계) + HTML·MD 크기를 DB에서 강제하는 `books` 트리거 |
+| 13 | `upload-limits.sql` | 업로드 일원화 — `site_settings.upload_max_mb`(기본 50, 기존 `pdf_max_mb` 값 승계) + 단일 파일(HTML·MD)의 R2 주소 컬럼 `books.single_url / single_name / single_size` |
 
 > 본문 이미지는 DB나 Supabase Storage가 아니라 **Cloudflare R2**로 가므로 SQL이 필요 없습니다
 > (2-8). 환경변수만 등록하면 됩니다.

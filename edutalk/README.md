@@ -71,6 +71,12 @@ npm --prefix edutalk run dev    # .env 를 읽어서 실행, http://localhost:30
 
 ## 로그인이 안 될 때
 
+> **2026-08 수정**: 로그인 화면이 supabase-js를 CDN에서
+> `.../umd/supabase.min.js`로 불러왔는데, supabase-js v2 패키지에는 그 이름의 파일이
+> 없습니다(`umd/supabase.js` 하나뿐). 그래서 `window.supabase`가 만들어지지 않았고
+> 로그인 버튼을 눌러도 아무 일도 일어나지 않았습니다. 지금은 서버가 의존성으로 가진
+> 번들을 `/vendor/supabase.js`로 직접 내려 줍니다 — CDN이 막힌 망에서도 동작합니다.
+
 LibroSpace에서는 되는 계정이 EduTalk에서만 실패한다면, 비밀번호 문제가 아니라
 **이 서버의 설정 문제**일 가능성이 큽니다. 로그인은 두 단계이기 때문입니다.
 
@@ -91,6 +97,10 @@ curl https://<배포주소>/api/health
 | `missingEnv`에 이름이 있음 | 그 환경변수를 Render → Environment 에 등록하고 재배포 |
 | `instructorProfilesTable`이 '테이블이 없습니다' | `supabase.sql`을 SQL Editor에서 실행 |
 | 모두 정상인데 로그인 실패 | 로그인 화면의 빨간 메시지를 확인 — 원인별로 다른 문구가 나옵니다 |
+
+로그인 버튼을 눌러도 **아무 반응이 없다면** 브라우저 개발자도구 콘솔에서
+`window.supabase`가 있는지 보세요. 없다면 `/vendor/supabase.js`가 200으로 내려오는지
+확인합니다(네트워크 탭).
 
 `SUPABASE_URL`/`SUPABASE_ANON_KEY`가 LibroSpace와 **다른 프로젝트**를 가리키면 계정이
 공유되지 않아 '이메일 또는 비밀번호가 올바르지 않습니다'로 보입니다.

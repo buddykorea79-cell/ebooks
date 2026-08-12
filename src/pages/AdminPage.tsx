@@ -711,8 +711,8 @@ function FeatureSettings() {
               <br />
               Supabase SQL Editor에서{' '}
               <code className="rounded bg-amber-100 px-1">supabase/upload-limits.sql</code> 을
-              실행한 뒤 이 페이지를 새로고침하세요. 실행 전에는 저장이 실패하고, 업로드는 기본값
-              50MB로 동작합니다.
+              실행한 뒤 이 페이지를 새로고침하세요. 실행 전에는 이 설정 저장과 HTML·MD 파일
+              업로드가 실패하고, PDF 업로드는 기본값 50MB로 동작합니다.
             </div>
           )}
 
@@ -724,8 +724,8 @@ function FeatureSettings() {
               도서에 올리는 <strong className="font-medium text-gray-600">HTML(.html)</strong>,{' '}
               <strong className="font-medium text-gray-600">마크다운(.md)</strong>,{' '}
               <strong className="font-medium text-gray-600">PDF(.pdf)</strong> 파일 하나의 크기
-              한도입니다. 세 형식 모두 이 값 하나를 따릅니다. 화면에서 미리 걸러 주고, 서버(PDF)와
-              DB 트리거(HTML·MD)가 같은 값으로 다시 확인합니다.
+              한도입니다. 세 형식 모두 Cloudflare R2에 저장되며 이 값 하나를 따릅니다. 화면에서
+              미리 걸러 주고, 업로드 주소를 발급하는 서버가 같은 값으로 다시 확인합니다.
             </p>
             <label className="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-700">
               한 파일당
@@ -744,9 +744,9 @@ function FeatureSettings() {
               까지
             </label>
             <p className="mt-2 text-xs text-gray-400">
-              PDF는 Cloudflare R2로 브라우저에서 직접 전송되므로 서버 용량과 무관합니다. HTML·MD는
-              본문 텍스트로 DB에 저장되니, 수십 MB짜리는 저장·열람이 느려질 수 있습니다. 본문
-              이미지는 이 설정과 별개로 10MB 고정입니다.
+              파일은 브라우저에서 Cloudflare R2로 바로 전송되므로 서버 용량과는 무관합니다. 다만
+              크게 잡을수록 저장·전송량이 늘어납니다. 본문 이미지는 이 설정과 별개로 10MB
+              고정입니다.
             </p>
           </div>
 

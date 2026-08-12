@@ -88,7 +88,7 @@ export default function DocsPage() {
             <strong>단일 파일 업로드</strong>(완성된 HTML/MD 파일 하나),{' '}
             <strong>PDF</strong>(PDF 한 개를 원본 그대로). 단일 파일 모드에서 HTML 파일은 메뉴
             없이 전체 화면으로 표시되고, 마크다운 파일은 제목(H1·H2) 기준으로 목차가 자동
-            생성됩니다.
+            생성됩니다. HTML·MD·PDF 모두 같은 크기 한도(관리자 설정, 기본 50MB)를 따릅니다.
           </li>
           <li>
             <strong>PDF</strong>를 고르면 <strong>PDF 파일</strong> 탭이 나옵니다. 파일을 올리면

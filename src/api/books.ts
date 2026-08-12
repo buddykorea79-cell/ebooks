@@ -21,6 +21,10 @@ export interface BookPatch {
   css_apply_to_content?: boolean
   content_format?: ContentFormat
   source_mode?: SourceMode
+  single_url?: string | null
+  single_name?: string | null
+  single_size?: number | null
+  /** @deprecated single_url로 대체됨. 새 업로드 시 null로 비우는 용도로만 쓴다 */
   single_content?: string | null
   pdf_url?: string | null
   pdf_name?: string | null
@@ -28,11 +32,17 @@ export interface BookPatch {
   is_published?: boolean
 }
 
-/** 마이그레이션(content-format.sql, single-file.sql, pdf-mode.sql) 전 DB에는 없는 컬럼들 */
+/**
+ * 마이그레이션(content-format.sql, single-file.sql, pdf-mode.sql, upload-limits.sql)
+ * 전 DB에는 없는 컬럼들
+ */
 const OPTIONAL_BOOK_COLUMNS = [
   'content_format',
   'source_mode',
   'single_content',
+  'single_url',
+  'single_name',
+  'single_size',
   'pdf_url',
   'pdf_name',
   'pdf_size',
