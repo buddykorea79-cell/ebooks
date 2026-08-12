@@ -65,21 +65,18 @@ git push -u origin main
   계정으로만 접근하며, 첫 로그인 시 자동 승인됩니다.
   관리자 계정은 관리자 페이지에서 삭제할 수 없습니다.
 - **방 입장**: 학생은 6자리 방 코드만으로 입장합니다 (방 비밀번호 없음).
-- **필요 환경변수**: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
-  `SUPABASE_ANON_KEY`. 앞의 둘은 **LibroSpace와 같은 프로젝트 값**이어야 계정이
+- **필요 환경변수**: `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
+  `SUPABASE_SERVICE_ROLE_KEY`. 앞의 둘은 **LibroSpace와 같은 프로젝트 값**이어야 계정이
   공유됩니다. 이메일/비밀번호 로그인이라 Google OAuth Provider 설정은 필요 없습니다.
+  **세 개가 모두 있어야 로그인이 끝까지 진행됩니다** — 하나라도 빠지면 로그인 화면에
+  무엇이 빠졌는지 표시되고, `/api/health` 에서도 확인할 수 있습니다.
 
-  프로필 테이블 생성 SQL (Supabase SQL Editor 에서 1회 실행):
+- **프로필 테이블**: [supabase.sql](supabase.sql) 을 Supabase SQL Editor에서 1회 실행하세요.
+  RLS 설정이 함께 들어 있습니다. ⚠️ 예전 안내대로 `CREATE TABLE`만 실행해 두었다면
+  RLS가 꺼진 상태라, anon key(공개되는 값)를 아는 누구나 자기 승인 상태를 바꿀 수 있습니다.
+  이 파일을 다시 실행하면 기존 테이블에도 RLS가 적용됩니다.
 
-  ```sql
-  CREATE TABLE IF NOT EXISTS instructor_profiles (
-    user_id     UUID    PRIMARY KEY,
-    email       TEXT    UNIQUE NOT NULL,
-    name        TEXT    NOT NULL,
-    status      TEXT    NOT NULL DEFAULT 'pending',
-    created_at  BIGINT  NOT NULL,
-    approved_at BIGINT
-  );
-  ```
+- **로그인 문제 진단**: `https://<주소>/api/health` — 환경변수 유무와 테이블 접근 결과를
+  보여 줍니다(값 자체는 노출하지 않음).
 - **세션**: 강사 인증은 Supabase JWT 라 서버가 재시작돼도 유지됩니다.
   관리자 페이지 세션 토큰만 서버 메모리에 있어 재시작 시 재로그인이 필요합니다.

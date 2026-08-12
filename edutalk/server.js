@@ -34,32 +34,53 @@ const MAX_MESSAGES = 500;         // 방별 채팅 보관 상한 (메모리 보�
 // 검증한 뒤 instructor_profiles 테이블의 승인 상태만 관리한다.
 //
 // 필요 환경변수:
-//   SUPABASE_URL              — 프로젝트 URL
-//   SUPABASE_SERVICE_ROLE_KEY — 서버 전용 (토큰 검증·프로필 관리)
-//   SUPABASE_ANON_KEY         — 브라우저 전용 (로그인) — /api/config 로 노출
+//   SUPABASE_URL              — 프로젝트 URL              (LibroSpace와 같은 값)
+//   SUPABASE_ANON_KEY         — 브라우저 로그인 + 토큰 검증 (LibroSpace와 같은 값)
+//   SUPABASE_SERVICE_ROLE_KEY — 서버 전용 (프로필 테이블 읽기·쓰기, 계정 삭제)
 //
-// 프로필 테이블 생성 SQL (프로젝트 SQL 에디터에서 한 번만 실행):
-//   CREATE TABLE IF NOT EXISTS instructor_profiles (
-//     user_id     UUID    PRIMARY KEY,
-//     email       TEXT    UNIQUE NOT NULL,
-//     name        TEXT    NOT NULL,
-//     status      TEXT    NOT NULL DEFAULT 'pending',
-//     created_at  BIGINT  NOT NULL,
-//     approved_at BIGINT
-//   );
+// 프로필 테이블은 edutalk/supabase.sql 을 SQL Editor에서 한 번 실행해 만든다.
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-const supabase = (SUPABASE_URL && SUPABASE_KEY)
-  ? createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } })
+
+const CLIENT_OPTS = { auth: { persistSession: false, autoRefreshToken: false } };
+
+/**
+ * 토큰 검증 전용 클라이언트.
+ *
+ * 검증(`auth.getUser(token)`)은 anon key 로도 되므로 service role key 와 분리한다.
+ * 예전에는 service role key 로만 만든 클라이언트로 검증해서, 그 키 하나가 빠지거나
+ * 잘못 들어가면 "LibroSpace 로그인은 되는데 EduTalk 로그인만 실패"하는 상태가 됐다.
+ * (브라우저 로그인은 anon key 로 이미 성공한 뒤였기 때문)
+ */
+const authKey = SUPABASE_ANON_KEY || SUPABASE_SERVICE_KEY;
+const authClient = (SUPABASE_URL && authKey)
+  ? createClient(SUPABASE_URL, authKey, CLIENT_OPTS)
   : null;
 
-if (!supabase) {
-  console.warn('Supabase not configured — instructor login is unavailable (set SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY)');
+/** 프로필 테이블 접근용 — RLS 를 우회해야 하므로 service role key 전용 */
+const supabase = (SUPABASE_URL && SUPABASE_SERVICE_KEY)
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, CLIENT_OPTS)
+  : null;
+
+/** 비어 있는 필수 환경변수 목록 — 로그인 실패 원인을 즉시 알려 주기 위해 모아 둔다 */
+const missingEnv = [
+  ['SUPABASE_URL', SUPABASE_URL],
+  ['SUPABASE_ANON_KEY', SUPABASE_ANON_KEY],
+  ['SUPABASE_SERVICE_ROLE_KEY', SUPABASE_SERVICE_KEY]
+].filter(([, v]) => !v).map(([k]) => k);
+
+if (missingEnv.length) {
+  console.warn(
+    `⚠️  환경변수 누락: ${missingEnv.join(', ')} — 로그인이 정상 동작하지 않습니다.\n` +
+    '    Render → Environment 에 LibroSpace와 같은 Supabase 값을 등록하세요.\n' +
+    '    설정 상태는 /api/health 에서 확인할 수 있습니다.'
+  );
 }
 
 // ── Instructor profiles (인메모리 캐시 + Supabase write-through) ─────────────
 let instructorProfiles = []; // { userId, email, name, status, createdAt, approvedAt }
+let profilesLoaded = false;  // 부팅 시 전체 로드에 성공했는지
 
 function dbToProfile(r) {
   return {
@@ -68,26 +89,187 @@ function dbToProfile(r) {
   };
 }
 
+/** 캐시에 반영 (같은 user_id / email 의 기존 항목은 교체) */
+function cacheProfile(prof) {
+  instructorProfiles = instructorProfiles.filter(
+    p => p.userId !== prof.userId && p.email !== prof.email
+  );
+  instructorProfiles.push(prof);
+  return prof;
+}
+
+/** Supabase 오류를 운영자가 바로 고칠 수 있는 한국어 안내로 */
+function dbErrorMessage(error) {
+  const msg = String((error && error.message) || '');
+  if (/relation .*instructor_profiles.* does not exist/i.test(msg) ||
+      /schema cache/i.test(msg) ||
+      (error && (error.code === '42P01' || error.code === 'PGRST205'))) {
+    return 'instructor_profiles 테이블이 없습니다. edutalk/supabase.sql 을 Supabase SQL Editor에서 실행하세요.';
+  }
+  if (/row-level security/i.test(msg)) {
+    return 'instructor_profiles 접근이 RLS에 막혔습니다. SUPABASE_SERVICE_ROLE_KEY가 올바른지 확인하세요.';
+  }
+  return `프로필 조회에 실패했습니다: ${msg}`;
+}
+
+const SERVICE_KEY_MISSING =
+  '서버에 SUPABASE_SERVICE_ROLE_KEY가 없어 강사 프로필을 확인할 수 없습니다. 관리자에게 환경변수 등록을 요청하세요.';
+
 async function loadInstructorProfiles() {
   if (!supabase) return;
   const { data, error } = await supabase.from('instructor_profiles').select('*');
-  if (error) { console.error('Supabase load error:', error.message); return; }
+  if (error) {
+    console.error('Supabase load error:', dbErrorMessage(error));
+    return;
+  }
   instructorProfiles = (data || []).map(dbToProfile);
+  profilesLoaded = true;
   console.log(`Loaded ${instructorProfiles.length} instructor profiles from Supabase`);
 }
 
 loadInstructorProfiles().catch(e => console.error('Supabase init error:', e.message));
 
-// Supabase access token 검증 → 사용자 반환 (강사 입장 / 관리자 로그인 공통)
-async function getAuthUser(token) {
-  if (!supabase || typeof token !== 'string' || !token) return null;
-  try {
-    const { data, error } = await supabase.auth.getUser(token);
-    if (error || !data || !data.user) return null;
-    return data.user;
-  } catch (e) {
-    return null;
+/** 토큰이 틀린 게 아니라 Supabase에 닿지 못한 경우인지 */
+function isNetworkError(error) {
+  if (!error) return false;
+  if (error.name === 'AuthRetryableFetchError' || error.status === 0) return true;
+  return /fetch failed|network|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|timeout/i.test(
+    String(error.message || '')
+  );
+}
+
+/**
+ * Supabase access token 검증.
+ * 실패 원인을 구분해서 돌려준다 — "설정 누락"과 "비밀번호 틀림"은 대응이 전혀 다른데,
+ * 예전에는 둘 다 똑같이 '인증에 실패했습니다'로 보여 원인을 찾을 수 없었다.
+ */
+async function authenticate(token) {
+  if (!authClient) {
+    return {
+      user: null, status: 503, code: 'NOT_CONFIGURED',
+      error: `서버에 Supabase 인증이 설정되지 않았습니다 (누락: ${missingEnv.join(', ') || 'SUPABASE_URL'}). 관리자에게 문의하세요.`
+    };
   }
+  if (typeof token !== 'string' || !token) {
+    return { user: null, status: 401, code: 'NO_TOKEN', error: '로그인이 필요합니다.' };
+  }
+  try {
+    const { data, error } = await authClient.auth.getUser(token);
+    if (error || !data || !data.user) {
+      console.error('[auth] 토큰 검증 실패:', (error && error.message) || 'user 없음');
+      // 네트워크 오류는 error 로 돌아온다(throw 가 아니라).
+      // 이걸 '토큰 만료'로 보여 주면 멀쩡한 계정으로 계속 다시 로그인하게 된다.
+      if (isNetworkError(error)) {
+        return {
+          user: null, status: 503, code: 'AUTH_UNAVAILABLE',
+          error: 'Supabase 인증 서버에 연결하지 못했습니다. SUPABASE_URL이 올바른지, 프로젝트가 일시중지 상태는 아닌지 확인하세요.'
+        };
+      }
+      return {
+        user: null, status: 401, code: 'INVALID_TOKEN',
+        error: '로그인 정보가 만료되었거나 다른 Supabase 프로젝트의 계정입니다. 다시 로그인해 주세요.'
+      };
+    }
+    return { user: data.user };
+  } catch (e) {
+    console.error('[auth] 토큰 검증 오류:', e.message);
+    return {
+      user: null, status: 503, code: 'AUTH_UNAVAILABLE',
+      error: '인증 서버에 연결하지 못했습니다. 잠시 후 다시 시도하세요.'
+    };
+  }
+}
+
+/**
+ * 강사 프로필 조회 — 캐시에 없으면 DB에서 다시 찾는다.
+ *
+ * 부팅 시 loadInstructorProfiles()가 실패했거나(테이블 미생성, 일시적 네트워크 오류)
+ * 그 뒤에 행이 생겼을 수 있다. 캐시만 믿으면 이미 승인된 계정이 계속 '승인 대기'로
+ * 보이거나 강의실 입장이 막힌다.
+ */
+async function findProfile(user) {
+  const cached = instructorProfiles.find(p => p.userId === user.id);
+  if (cached) return { profile: cached };
+  if (!supabase) return { profile: null, status: 503, error: SERVICE_KEY_MISSING };
+
+  const { data, error } = await supabase
+    .from('instructor_profiles').select('*').eq('user_id', user.id).maybeSingle();
+  if (error) return { profile: null, status: 500, error: dbErrorMessage(error) };
+  if (!data) return { profile: null };
+  return { profile: cacheProfile(dbToProfile(data)) };
+}
+
+/**
+ * 관리자 계정(ADMIN_EMAIL)은 항상 승인 상태로 유지한다.
+ * ADMIN_EMAIL 을 나중에 지정했거나 그 전에 로그인해 pending 으로 남은 경우를 스스로 고친다.
+ */
+async function autoApproveAdmin(profile) {
+  if (!profile || profile.email !== ADMIN_EMAIL || profile.status === 'approved') {
+    return { profile };
+  }
+  if (!supabase) return { profile };
+  const approvedAt = Date.now();
+  const { error } = await supabase
+    .from('instructor_profiles')
+    .update({ status: 'approved', approved_at: approvedAt })
+    .eq('user_id', profile.userId);
+  if (error) {
+    console.error('관리자 자동 승인 실패:', error.message);
+    return { profile };   // 못 고쳐도 로그인 흐름은 계속
+  }
+  profile.status = 'approved';
+  profile.approvedAt = approvedAt;
+  return { profile };
+}
+
+/** 프로필 조회 — 없으면 신규 등록(pending). 관리자 계정은 자동 승인 */
+async function ensureProfile(user) {
+  const found = await findProfile(user);
+  if (found.error) return found;
+  if (found.profile) return await autoApproveAdmin(found.profile);
+  if (!supabase) return { profile: null, status: 503, error: SERVICE_KEY_MISSING };
+
+  const email = (user.email || '').toLowerCase();
+
+  // 같은 이메일의 예전 행이 남아 있을 수 있다 (Auth 계정을 지웠다가 다시 만든 경우 등).
+  // email 에 UNIQUE 가 걸려 있어 그대로 insert 하면 23505 로 실패하므로,
+  // 기존 행의 user_id 를 지금 계정으로 옮겨 승인 상태를 이어받는다.
+  const { data: byEmail, error: byEmailErr } = await supabase
+    .from('instructor_profiles').select('*').eq('email', email).maybeSingle();
+  if (byEmailErr) return { profile: null, status: 500, error: dbErrorMessage(byEmailErr) };
+
+  if (byEmail) {
+    const { data: relinked, error: relinkErr } = await supabase
+      .from('instructor_profiles')
+      .update({ user_id: user.id })
+      .eq('email', email)
+      .select('*')
+      .maybeSingle();
+    if (relinkErr) return { profile: null, status: 500, error: dbErrorMessage(relinkErr) };
+    console.log(`[auth] 프로필 재연결: ${email} → ${user.id}`);
+    return await autoApproveAdmin(
+      cacheProfile(dbToProfile(relinked || { ...byEmail, user_id: user.id }))
+    );
+  }
+
+  const isAdmin = email === ADMIN_EMAIL;
+  const meta = user.user_metadata || {};
+  const row = {
+    user_id: user.id,
+    email,
+    // LibroSpace 가입 시 넣는 nickname 을 우선 사용한다 (Google 계정이면 full_name)
+    name: String(meta.nickname || meta.full_name || meta.name || email.split('@')[0]).slice(0, 30),
+    status: isAdmin ? 'approved' : 'pending',   // 관리자 계정은 자동 승인
+    created_at: Date.now(),
+    approved_at: isAdmin ? Date.now() : null
+  };
+  const { data: inserted, error } = await supabase
+    .from('instructor_profiles').insert(row).select('*').maybeSingle();
+  if (error) {
+    console.error('Supabase profile insert error:', error.message);
+    return { profile: null, status: 500, error: dbErrorMessage(error) };
+  }
+  return { profile: cacheProfile(dbToProfile(inserted || row)) };
 }
 
 // 관리자 페이지용 세션 토큰 (메모리 — 서버 재시작 시 재로그인 필요)
@@ -190,8 +372,41 @@ app.get('/api/config', (req, res) => {
   res.json({
     supabaseUrl: SUPABASE_URL || null,
     supabaseAnonKey: SUPABASE_ANON_KEY || null,
+    // 로그인 화면이 "무엇이 빠졌는지"까지 보여줄 수 있도록 (값이 아니라 이름만)
+    configError: (!SUPABASE_URL || !SUPABASE_ANON_KEY)
+      ? `서버에 인증이 설정되지 않았습니다 (누락: ${missingEnv.join(', ')}). 관리자에게 문의하세요.`
+      : null,
     // 계정은 LibroSpace와 공용이므로 가입·비밀번호 재설정은 그쪽으로 보낸다
     librospaceUrl: LIBROSPACE_URL
+  });
+});
+
+// ── 설정 진단 — 로그인이 안 될 때 어디가 문제인지 확인용 ──────────────────────
+// 값은 노출하지 않고 "있다/없다"와 테이블 접근 결과만 돌려준다.
+app.get('/api/health', async (req, res) => {
+  const env = {
+    SUPABASE_URL: Boolean(SUPABASE_URL),
+    SUPABASE_ANON_KEY: Boolean(SUPABASE_ANON_KEY),
+    SUPABASE_SERVICE_ROLE_KEY: Boolean(SUPABASE_SERVICE_KEY)
+  };
+
+  let instructorProfilesTable = 'skipped (SUPABASE_SERVICE_ROLE_KEY 없음)';
+  if (supabase) {
+    // HEAD 요청(head:true)은 본문이 없어 오류 내용을 알 수 없다. 한 행만 실제로 읽어 확인한다.
+    const { error } = await supabase.from('instructor_profiles').select('user_id').limit(1);
+    instructorProfilesTable = error ? dbErrorMessage(error) : 'ok';
+  }
+
+  res.json({
+    ok: missingEnv.length === 0 && instructorProfilesTable === 'ok',
+    env,
+    missingEnv,
+    instructorProfilesTable,
+    profilesLoaded,
+    profileCount: instructorProfiles.length,
+    // 관리자 계정이 의도한 주소인지 확인용 (앞 한 글자만 노출)
+    adminEmail: ADMIN_EMAIL.replace(/^(.)[^@]*/, '$1***'),
+    rooms: rooms.size
   });
 });
 
@@ -199,55 +414,37 @@ app.get('/api/config', (req, res) => {
 // Authorization: Bearer <supabase access token>
 app.post('/api/instructor/session', async (req, res) => {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  const user = await getAuthUser(token);
-  if (!user) {
-    return res.status(401).json({ ok: false, error: '인증에 실패했습니다. 다시 로그인하세요.' });
+  const auth = await authenticate(token);
+  if (!auth.user) {
+    return res.status(auth.status).json({ ok: false, code: auth.code, error: auth.error });
   }
 
-  const email = (user.email || '').toLowerCase();
-  let prof = instructorProfiles.find(p => p.userId === user.id);
-
-  if (!prof) {
-    const isAdmin = email === ADMIN_EMAIL;
-    const meta = user.user_metadata || {};
-    prof = {
-      userId: user.id,
-      email,
-      // LibroSpace 가입 시 넣는 nickname 을 우선 사용한다 (Google 계정이면 full_name)
-      name: String(meta.nickname || meta.full_name || meta.name || email.split('@')[0]).slice(0, 30),
-      status: isAdmin ? 'approved' : 'pending',   // 관리자 계정은 자동 승인
-      createdAt: Date.now(),
-      approvedAt: isAdmin ? Date.now() : null
-    };
-    const { error } = await supabase.from('instructor_profiles').insert({
-      user_id: prof.userId, email: prof.email, name: prof.name,
-      status: prof.status, created_at: prof.createdAt, approved_at: prof.approvedAt
+  const { profile, error, status } = await ensureProfile(auth.user);
+  if (error || !profile) {
+    return res.status(status || 500).json({
+      ok: false, code: 'PROFILE', error: error || '강사 프로필을 확인하지 못했습니다.'
     });
-    if (error && error.code !== '23505') {
-      console.error('Supabase profile insert error:', error.message);
-      return res.status(500).json({ ok: false, error: '서버 오류가 발생했습니다.' });
-    }
-    instructorProfiles.push(prof);
   }
 
   res.json({
     ok: true,
-    status: prof.status,
-    name: prof.name,
-    email: prof.email,
-    isAdmin: email === ADMIN_EMAIL
+    status: profile.status,
+    name: profile.name,
+    email: profile.email,
+    isAdmin: profile.email === ADMIN_EMAIL
   });
 });
 
 // ── 관리자: 로그인 — ADMIN_EMAIL 계정으로 인증 ───────────────────────────────
 app.post('/api/admin/auth', async (req, res) => {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  const user = await getAuthUser(token);
+  const auth = await authenticate(token);
+  const user = auth.user;
   if (!user) {
-    return res.status(401).json({ ok: false, error: '인증에 실패했습니다. 다시 로그인하세요.' });
+    return res.status(auth.status).json({ ok: false, code: auth.code, error: auth.error });
   }
   if ((user.email || '').toLowerCase() !== ADMIN_EMAIL) {
-    return res.status(403).json({ ok: false, error: '관리자 계정이 아닙니다.' });
+    return res.status(403).json({ ok: false, code: 'NOT_ADMIN', error: '관리자 계정이 아닙니다.' });
   }
   const adminToken = crypto.randomBytes(24).toString('hex');
   adminTokens.add(adminToken);
@@ -263,7 +460,19 @@ function requireAdmin(req, res, next) {
 }
 
 // ── 관리자: 강사 목록 조회 ─────────────────────────────────────────────────────
-app.get('/api/admin/instructors', requireAdmin, (req, res) => {
+app.get('/api/admin/instructors', requireAdmin, async (req, res) => {
+  // 부팅 시 전체 로드가 실패했으면(테이블 미생성 등) 여기서 한 번 더 시도한다.
+  // 그러지 않으면 목록이 계속 비어 보여 승인해 줄 대상을 찾을 수 없다.
+  if (!profilesLoaded) {
+    if (!supabase) return res.status(503).json({ ok: false, error: SERVICE_KEY_MISSING });
+    await loadInstructorProfiles();
+    if (!profilesLoaded) {
+      return res.status(500).json({
+        ok: false,
+        error: '강사 목록을 불러오지 못했습니다. /api/health 로 설정을 확인하세요.'
+      });
+    }
+  }
   res.json({
     ok: true,
     instructors: instructorProfiles.map(p => ({
@@ -450,10 +659,28 @@ io.on('connection', socket => {
     const { roomCode, lectureName, asAssistant, name, token } = payload;
 
     // Supabase access token 검증 + 승인된 프로필 확인 (강사·조교 공통)
-    const user = await getAuthUser(token);
-    const acct = user ? instructorProfiles.find(p => p.userId === user.id) : null;
-    if (!acct || acct.status !== 'approved') {
-      socket.emit('app:error', { message: '강사 인증이 만료되었거나 승인되지 않은 계정입니다. 다시 로그인하세요.', code: 'AUTH' });
+    const auth = await authenticate(token);
+    if (!auth.user) {
+      socket.emit('app:error', { message: auth.error, code: 'AUTH' });
+      return;
+    }
+    // 캐시가 아니라 DB까지 확인한다 — 승인 직후/서버 재시작 뒤에도 바로 반영되도록
+    const { profile: acct, error: profErr } = await findProfile(auth.user);
+    if (profErr) {
+      socket.emit('app:error', { message: profErr, code: 'AUTH' });
+      return;
+    }
+    if (!acct) {
+      socket.emit('app:error', { message: '등록되지 않은 계정입니다. 로그인 화면에서 다시 로그인해 등록을 신청하세요.', code: 'AUTH' });
+      return;
+    }
+    if (acct.status !== 'approved') {
+      socket.emit('app:error', {
+        message: acct.status === 'rejected'
+          ? '승인이 거절된 계정입니다. 관리자에게 문의하세요.'
+          : '아직 관리자 승인 대기 중입니다.',
+        code: 'AUTH'
+      });
       return;
     }
 

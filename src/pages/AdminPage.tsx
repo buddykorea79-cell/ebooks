@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { AiUsageSummary, BookTypeRow, Category, Profile } from '../types/database'
 import {
-  DEFAULT_PDF_MAX_MB,
   HOME_LAYOUT_LABELS,
-  PDF_MAX_MB_OPTIONS,
+  UPLOAD_MAX_MB_OPTIONS,
+  resolveUploadMaxMb,
 } from '../types/database'
 import { fetchAiUsageSummary, fetchProfiles, setUserAdmin, setUserAiEnabled } from '../api/profiles'
 import { useAuth } from '../contexts/AuthContext'
@@ -583,11 +583,13 @@ function FeatureSettings() {
       setSettings(prev)
       const msg = errMsg(err)
       setError(
-        msg.includes('pdf_max_mb') || msg.includes('edutalk_url')
-          ? '저장에 실패했습니다. supabase/site-settings-extra.sql을 SQL Editor에서 실행했는지 확인하세요.'
-          : msg.includes('home_layout') || msg.includes('home_featured_count')
-            ? '저장에 실패했습니다. supabase/home-layout.sql을 SQL Editor에서 실행했는지 확인하세요.'
-            : msg,
+        msg.includes('upload_max_mb')
+          ? '저장에 실패했습니다. supabase/upload-limits.sql을 SQL Editor에서 실행했는지 확인하세요.'
+          : msg.includes('edutalk_url')
+            ? '저장에 실패했습니다. supabase/site-settings-extra.sql을 SQL Editor에서 실행했는지 확인하세요.'
+            : msg.includes('home_layout') || msg.includes('home_featured_count')
+              ? '저장에 실패했습니다. supabase/home-layout.sql을 SQL Editor에서 실행했는지 확인하세요.'
+              : msg,
       )
     } finally {
       setBusy(false)
@@ -605,13 +607,14 @@ function FeatureSettings() {
 
   const layout = settings?.home_layout ?? 'latest'
   const featuredCount = settings?.home_featured_count ?? 8
-  const pdfMaxMb = settings?.pdf_max_mb ?? DEFAULT_PDF_MAX_MB
+  const uploadMaxMb = resolveUploadMaxMb(settings)
   /**
-   * site-settings-extra.sql 실행 여부.
+   * 마이그레이션 실행 여부.
    * 조회는 select('*')라 성공하지만 컬럼이 없으면 값이 undefined로 온다.
    * 저장할 때가 되어서야 실패하면 원인을 알기 어려우므로 미리 알려 준다.
    */
-  const needsExtraSql = settings !== null && settings.pdf_max_mb === undefined
+  const needsUploadSql = settings !== null && settings.upload_max_mb === undefined
+  const needsExtraSql = settings !== null && settings.edutalk_url === undefined
 
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4">
@@ -690,7 +693,9 @@ function FeatureSettings() {
 
           {needsExtraSql && (
             <div className="mt-5 rounded border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
-              <strong className="font-semibold">아래 두 설정이 아직 준비되지 않았습니다.</strong>
+              <strong className="font-semibold">
+                EduTalk 주소 설정이 아직 준비되지 않았습니다.
+              </strong>
               <br />
               Supabase SQL Editor에서{' '}
               <code className="rounded bg-amber-100 px-1">supabase/site-settings-extra.sql</code>{' '}
@@ -698,21 +703,39 @@ function FeatureSettings() {
             </div>
           )}
 
+          {needsUploadSql && (
+            <div className="mt-5 rounded border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+              <strong className="font-semibold">
+                업로드 크기 설정이 아직 준비되지 않았습니다.
+              </strong>
+              <br />
+              Supabase SQL Editor에서{' '}
+              <code className="rounded bg-amber-100 px-1">supabase/upload-limits.sql</code> 을
+              실행한 뒤 이 페이지를 새로고침하세요. 실행 전에는 저장이 실패하고, 업로드는 기본값
+              50MB로 동작합니다.
+            </div>
+          )}
+
           <div className="mt-5 border-t border-gray-100 pt-4">
-            <h3 className="text-sm font-medium text-gray-700">PDF 업로드 최대 크기</h3>
+            <h3 className="text-sm font-medium text-gray-700">
+              파일 업로드 최대 크기 (HTML · MD · PDF 공통)
+            </h3>
             <p className="mt-1 text-xs text-gray-500">
-              PDF 도서에서 한 번에 올릴 수 있는 파일 크기입니다. 화면에서 미리 걸러 주고, 서버도
-              같은 값으로 다시 확인합니다.
+              도서에 올리는 <strong className="font-medium text-gray-600">HTML(.html)</strong>,{' '}
+              <strong className="font-medium text-gray-600">마크다운(.md)</strong>,{' '}
+              <strong className="font-medium text-gray-600">PDF(.pdf)</strong> 파일 하나의 크기
+              한도입니다. 세 형식 모두 이 값 하나를 따릅니다. 화면에서 미리 걸러 주고, 서버(PDF)와
+              DB 트리거(HTML·MD)가 같은 값으로 다시 확인합니다.
             </p>
             <label className="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-700">
               한 파일당
               <select
-                value={pdfMaxMb}
-                disabled={busy || needsExtraSql}
-                onChange={(e) => save({ pdf_max_mb: Number(e.target.value) })}
+                value={uploadMaxMb}
+                disabled={busy || needsUploadSql}
+                onChange={(e) => save({ upload_max_mb: Number(e.target.value) })}
                 className={inputClass}
               >
-                {PDF_MAX_MB_OPTIONS.map((n) => (
+                {UPLOAD_MAX_MB_OPTIONS.map((n) => (
                   <option key={n} value={n}>
                     {n}MB
                   </option>
@@ -721,8 +744,9 @@ function FeatureSettings() {
               까지
             </label>
             <p className="mt-2 text-xs text-gray-400">
-              파일은 Cloudflare R2로 브라우저에서 직접 전송되므로 서버 용량과는 무관합니다. 다만
-              크게 잡을수록 저장·전송량이 늘어납니다.
+              PDF는 Cloudflare R2로 브라우저에서 직접 전송되므로 서버 용량과 무관합니다. HTML·MD는
+              본문 텍스트로 DB에 저장되니, 수십 MB짜리는 저장·열람이 느려질 수 있습니다. 본문
+              이미지는 이 설정과 별개로 10MB 고정입니다.
             </p>
           </div>
 

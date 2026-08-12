@@ -170,7 +170,7 @@ Claude 등 AI가 만든 **아티팩트 HTML을 `<!doctype html>`부터 통째로
 | AI 사용 권한 | 회원별로 AI 작성 도우미 허용 / 차단 + 회원별 사용 횟수·누적 요금 확인 |
 | 추천 기능 | 켜기 / 끄기 |
 | 홈 목록 구성 | 최신순 / 추천순 / '추천 도서 + 최신 도서' 2단 (2단일 때 추천 개수 지정) |
-| PDF 최대 크기 | 한 파일당 10~300MB (기본 **50MB**). 화면과 서버가 같은 값으로 검사 |
+| 파일 업로드 최대 크기 | **HTML·MD·PDF 공통** 한 파일당 10~300MB (기본 **50MB**). 화면·서버·DB가 같은 값으로 검사 |
 | EduTalk 주소 | 넣으면 홈에 '교육생과 대화하기' 버튼이 생기고 새 창으로 열림 (2-9) |
 
 - **Docs**(`/docs`) — 이용자를 위한 사용법 안내 페이지
@@ -269,8 +269,8 @@ PDF와 본문 이미지가 **같은 버킷**을 쓰고, 서버가 `kind`로 폴�
 
 | kind | 폴더 | 허용 형식 | 최대 |
 |------|------|-----------|------|
-| `pdf` | `{uid}/pdf/{bookId}/` | application/pdf | 300MB |
-| `image` | `{uid}/images/{bookId}/` | PNG·JPG·GIF·WebP·AVIF | 10MB |
+| `pdf` | `{uid}/pdf/{bookId}/` | application/pdf | 관리자 설정 (기본 50MB, 상한 500MB) |
+| `image` | `{uid}/images/{bookId}/` | PNG·JPG·GIF·WebP·AVIF | 10MB 고정 |
 
 SVG는 양쪽 다 막습니다 — 공개 버킷이라 URL을 직접 열면 스크립트가 실행될 수 있습니다.
 
@@ -293,9 +293,24 @@ R2는 같은 키로 PUT하면 **조용히 덮어씁니다.** 그래서 키에 UU
 설정에 필요한 환경변수와 Cloudflare 쪽 준비 순서(공개 주소, CORS, API 토큰)는
 [.env.example](.env.example)에 적어 두었습니다.
 
-PDF 한 파일의 최대 크기는 관리자 화면에서 정합니다(기본 50MB). 화면에서 미리 걸러 주지만
-그건 우회할 수 있으므로, 서명 URL을 발급하기 전에 서버가 `site_settings.pdf_max_mb`를 읽어
-다시 확인합니다.
+#### 업로드 크기 제한은 한 곳에서
+
+**HTML · 마크다운 · PDF 모두 같은 상한을 씁니다.** 관리자 화면 → 기능 설정의
+'파일 업로드 최대 크기' 하나(`site_settings.upload_max_mb`, 기본 50MB)로 세 형식을 함께
+관리합니다. 화면에서 미리 걸러 주지만 그건 우회할 수 있으므로, 저장 직전에 한 번 더 봅니다.
+
+| 형식 | 가는 곳 | 화면 검사 | 최종 검사 |
+|------|---------|-----------|-----------|
+| PDF | Cloudflare R2 | `PdfUploadTab` | `api/r2-upload-url.ts` — 서명 URL 발급 전에 확인 |
+| HTML · MD | Postgres `books.single_content` | `SingleContentTab` | `books` 트리거 `enforce_single_content_size` |
+
+HTML·MD는 서버 함수를 거치지 않고 브라우저가 DB에 바로 쓰기 때문에, 최종 판단을
+DB 트리거가 합니다(`upload-limits.sql`). 상한을 낮춰도 기존 도서의 다른 항목은 그대로
+수정할 수 있게, 본문이 실제로 바뀔 때만 검사합니다.
+
+> HTML·MD는 텍스트로 DB에 들어갑니다. 상한을 크게 잡을 수는 있지만, 수십 MB짜리 본문은
+> 저장·열람이 눈에 띄게 느려집니다. 그만큼 큰 교재라면 PDF 모드가 낫습니다.
+> 본문 이미지(10MB)는 이 설정과 별개의 고정 한도입니다.
 
 ### 2-9. EduTalk (교육생과 대화하기)
 
@@ -322,6 +337,13 @@ LibroSpace (Vercel)          EduTalk (Render 등)
 | 권한 | `profiles.is_admin`, `ai_enabled` | `instructor_profiles.status` (관리자 승인) |
 | 교육생 | — | 로그인 없이 6자리 방 코드 |
 
+EduTalk 로그인은 **두 단계**입니다. ① 브라우저가 Supabase에 로그인하고, ② 그 토큰을
+EduTalk 서버가 검증한 뒤 강사 승인 상태를 확인합니다. 그래서 **비밀번호가 맞아도 ②에서
+막히면 화면상으로는 '로그인 실패'로 보입니다.** 원인은 대부분 EduTalk 쪽 환경변수나
+`instructor_profiles` 테이블이며, `https://<EduTalk주소>/api/health` 에서 어느 쪽인지
+바로 알 수 있습니다. 테이블은 [edutalk/supabase.sql](edutalk/supabase.sql)을 LibroSpace와
+같은 Supabase 프로젝트에서 실행해 만듭니다.
+
 자세한 실행·배포 절차는 [edutalk/README.md](edutalk/README.md)를 보세요.
 
 ---
@@ -347,6 +369,7 @@ LibroSpace (Vercel)          EduTalk (Render 등)
 | 10 | `categories-ai-it.sql` | 분류를 AI·IT 체계로 재구성 (기존 도서를 옮긴 뒤 빈 분류만 삭제) |
 | 11 | `pdf-mode.sql` | `source_mode`에 `'pdf'` 추가 + `books.pdf_url / pdf_name / pdf_size` |
 | 12 | `site-settings-extra.sql` | `site_settings.pdf_max_mb`(기본 50) + `site_settings.edutalk_url` |
+| 13 | `upload-limits.sql` | 업로드 상한 일원화 — `site_settings.upload_max_mb`(기본 50, 기존 `pdf_max_mb` 값 승계) + HTML·MD 크기를 DB에서 강제하는 `books` 트리거 |
 
 > 본문 이미지는 DB나 Supabase Storage가 아니라 **Cloudflare R2**로 가므로 SQL이 필요 없습니다
 > (2-8). 환경변수만 등록하면 됩니다.

@@ -1,6 +1,9 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Book, ContentFormat } from '../types/database'
+import { DEFAULT_UPLOAD_MAX_MB, resolveUploadMaxMb } from '../types/database'
 import { updateBook } from '../api/books'
+import { formatBytes } from '../api/r2'
+import { fetchSiteSettings } from '../api/settings'
 import { renderMarkdown, splitMarkdownSections } from '../lib/markdown'
 import { buildInjectedCss, openContentPreview } from '../lib/preview'
 import ErrorAlert from './ErrorAlert'
@@ -11,14 +14,22 @@ interface SingleContentTabProps {
   onSaved: (book: Book) => void
 }
 
-const MAX_SIZE = 5 * 1024 * 1024 // 5MB
-
 /** 단일 파일 모드: 완성된 HTML/MD 파일 하나를 올려 도서 본문으로 사용 */
 export default function SingleContentTab({ book, onSaved }: SingleContentTabProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  // PDF와 같은 상한을 쓴다 (관리자 화면에서 함께 관리). 최종 판단은 DB 트리거가 한다
+  const [maxMb, setMaxMb] = useState(DEFAULT_UPLOAD_MAX_MB)
+
+  useEffect(() => {
+    fetchSiteSettings()
+      .then((s) => setMaxMb(resolveUploadMaxMb(s)))
+      .catch(() => {
+        // upload-limits.sql 실행 전이면 기본값으로 동작
+      })
+  }, [])
 
   const content = book.single_content ?? null
   const isMarkdown = (book.content_format ?? 'html') === 'markdown'
@@ -34,7 +45,7 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
       setError(
         'PDF는 이 탭에서 올릴 수 없습니다. ' +
           "기본정보 탭에서 구성 방식을 'PDF'로 바꾸고 저장하면 'PDF 파일' 탭이 나타납니다. " +
-          '거기서는 훨씬 큰 파일도 올릴 수 있습니다.',
+          '크기 한도는 이 탭과 같습니다.',
       )
       return
     }
@@ -46,8 +57,10 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
       setError('HTML(.html) 또는 마크다운(.md) 파일만 업로드할 수 있습니다.')
       return
     }
-    if (file.size > MAX_SIZE) {
-      setError('파일이 너무 큽니다. 5MB 이하 파일만 업로드할 수 있습니다.')
+    if (file.size > maxMb * 1024 * 1024) {
+      setError(
+        `파일이 너무 큽니다 (${formatBytes(file.size)}). 최대 ${maxMb}MB까지 올릴 수 있습니다. 관리자에게 한도 상향을 요청하거나 파일을 나눠 주세요.`,
+      )
       return
     }
 
@@ -62,7 +75,10 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
       setSaved(true)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (msg.includes('single_content') || msg.includes('source_mode')) {
+      if (msg.includes('업로드 한도')) {
+        // upload-limits.sql의 트리거가 막은 경우 (화면 검사를 우회했거나 그 사이 한도가 낮아짐)
+        setError(msg)
+      } else if (msg.includes('single_content') || msg.includes('source_mode')) {
         setError(
           '저장에 실패했습니다. supabase/single-file.sql을 SQL Editor에서 실행했는지 확인하세요.',
         )
@@ -97,12 +113,14 @@ export default function SingleContentTab({ book, onSaved }: SingleContentTabProp
       <p className="text-sm text-gray-500">
         완성된 <strong>HTML(.html)</strong> 또는 <strong>마크다운(.md)</strong> 파일 하나를
         올리면 그대로 도서 본문이 됩니다. HTML은 메뉴 없이 전체 화면으로, 마크다운은 제목(H1·H2)
-        기준으로 목차가 자동 생성됩니다. 파일은 5MB 이하여야 합니다.
+        기준으로 목차가 자동 생성됩니다. 현재 한 파일당{' '}
+        <strong className="font-medium text-gray-700">최대 {maxMb}MB</strong>까지 올릴 수 있습니다
+        (관리자 설정 — PDF 업로드와 같은 한도).
       </p>
       <p className="mt-1.5 text-sm text-gray-500">
         <strong className="font-medium text-gray-700">PDF를 올리시려면</strong> 기본정보 탭에서
         구성 방식을 <strong className="font-medium text-gray-700">PDF</strong>로 바꿔 주세요. 이
-        탭이 'PDF 파일' 탭으로 바뀌고 훨씬 큰 파일을 올릴 수 있습니다.
+        탭이 'PDF 파일' 탭으로 바뀝니다.
       </p>
 
       <input

@@ -12,7 +12,8 @@ export interface SiteSettingsPatch {
   recommend_enabled?: boolean
   home_layout?: HomeLayout
   home_featured_count?: number
-  pdf_max_mb?: number
+  /** HTML · MD · PDF 공통 업로드 상한(MB) */
+  upload_max_mb?: number
   edutalk_url?: string | null
 }
 

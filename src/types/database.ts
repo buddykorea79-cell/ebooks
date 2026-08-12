@@ -59,17 +59,34 @@ export interface SiteSettings {
   /** home-layout.sql 실행 전에는 컬럼이 없어 undefined → 'latest'로 간주 */
   home_layout?: HomeLayout
   home_featured_count?: number
-  /** 한 번에 올릴 수 있는 PDF 최대 크기(MB). site-settings-extra.sql 실행 전에는 undefined */
+  /**
+   * 한 번에 올릴 수 있는 파일 최대 크기(MB) — HTML · MD · PDF 공통.
+   * upload-limits.sql 실행 전에는 컬럼이 없어 undefined
+   */
+  upload_max_mb?: number
+  /**
+   * @deprecated upload_max_mb로 통합됨. upload-limits.sql 실행 전 배포본을 위해
+   * 값을 읽을 때만 예비로 참고한다 (저장은 upload_max_mb로만 한다)
+   */
   pdf_max_mb?: number
   /** EduTalk(교육생과 대화하기) 주소. 비어 있으면 홈에 버튼을 감춘다 */
   edutalk_url?: string | null
 }
 
-/** PDF 최대 크기 선택지 (관리자 화면) */
-export const PDF_MAX_MB_OPTIONS = [10, 20, 50, 100, 200, 300] as const
+/** 업로드 최대 크기 선택지 (관리자 화면) */
+export const UPLOAD_MAX_MB_OPTIONS = [10, 20, 50, 100, 200, 300] as const
 
-/** site-settings-extra.sql 실행 전 기본값 */
-export const DEFAULT_PDF_MAX_MB = 50
+/** upload-limits.sql 실행 전 기본값 */
+export const DEFAULT_UPLOAD_MAX_MB = 50
+
+/**
+ * 설정에서 업로드 상한(MB)을 꺼낸다.
+ * upload-limits.sql 실행 전이면 예전 pdf_max_mb를, 그것도 없으면 기본값을 쓴다.
+ */
+export function resolveUploadMaxMb(settings: SiteSettings | null | undefined): number {
+  const raw = settings?.upload_max_mb ?? settings?.pdf_max_mb
+  return typeof raw === 'number' && raw > 0 ? raw : DEFAULT_UPLOAD_MAX_MB
+}
 
 /** 메뉴 콘텐츠(html_content)를 어떤 형식으로 작성·렌더링할지 */
 export type ContentFormat = 'html' | 'markdown'

@@ -38,7 +38,13 @@ async function initAuth() {
     }
     if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
       showLoginState('form');
-      showLoginError('서버에 인증이 설정되지 않았습니다.');
+      showLoginError(cfg.configError || '서버에 인증이 설정되지 않았습니다.', true);
+      $('login-btn').disabled = true;
+      return;
+    }
+    if (!window.supabase || !window.supabase.createClient) {
+      showLoginState('form');
+      showLoginError('로그인 모듈을 불러오지 못했습니다. 네트워크 차단을 확인하고 새로고침하세요.', true);
       $('login-btn').disabled = true;
       return;
     }
@@ -61,21 +67,24 @@ async function tryAdminAuth(accessToken) {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + accessToken }
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (data.ok) {
       adminToken = data.token;
       $('screen-login').classList.add('hidden');
       $('screen-admin').classList.remove('hidden');
       loadInstructors();
     } else {
-      // 관리자 계정이 아니면 로그아웃 — 다른 계정으로 다시 시도하도록
-      if (sb) await sb.auth.signOut();
+      // 관리자 계정이 아니거나 토큰이 못 쓰는 상태일 때만 로그아웃한다.
+      // 서버 설정 문제(SUPABASE_* 누락 등)라면 다시 로그인해도 결과가 같다.
+      if (sb && (data.code === 'NOT_ADMIN' || data.code === 'INVALID_TOKEN' || data.code === 'NO_TOKEN')) {
+        await sb.auth.signOut();
+      }
       showLoginState('form');
-      showLoginError(data.error || '로그인에 실패했습니다.');
+      showLoginError(data.error || `로그인에 실패했습니다 (HTTP ${res.status}).`, true);
     }
   } catch (e) {
     showLoginState('form');
-    showLoginError('서버 오류가 발생했습니다.');
+    showLoginError('서버에 연결하지 못했습니다. 잠시 후 다시 시도하세요.', true);
   }
 }
 
@@ -83,7 +92,8 @@ $('login-form-el').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!sb) return;
 
-  const email = $('login-email').value.trim();
+  // 모바일 키보드가 첫 글자를 대문자로 바꾸는 일이 있어 소문자로 맞춘다
+  const email = $('login-email').value.trim().toLowerCase();
   const password = $('login-password').value;
   if (!email || !password) {
     showLoginError('이메일과 비밀번호를 입력하세요.');
@@ -104,10 +114,14 @@ $('login-form-el').addEventListener('submit', async (e) => {
       );
       return;
     }
+    if (!data || !data.session) {
+      showLoginError('세션을 받지 못했습니다. 이메일 인증이 끝난 계정인지 확인하세요.', true);
+      return;
+    }
     $('login-password').value = '';
     await tryAdminAuth(data.session.access_token);
   } catch (err) {
-    showLoginError('서버 오류가 발생했습니다.');
+    showLoginError('로그인 처리 중 오류가 발생했습니다: ' + (err && err.message ? err.message : err), true);
   } finally {
     btn.disabled = false;
     btn.textContent = '로그인';
@@ -116,11 +130,15 @@ $('login-form-el').addEventListener('submit', async (e) => {
 
 initAuth();
 
-function showLoginError(msg) {
+// persist=true 면 자동으로 사라지지 않는다 (설정 문제 안내용)
+function showLoginError(msg, persist) {
   const el = $('login-error');
+  if (el._hideTimer) clearTimeout(el._hideTimer);
   el.textContent = msg;
   el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, 4000);
+  if (!persist) {
+    el._hideTimer = setTimeout(() => { el.style.display = 'none'; }, 4000);
+  }
 }
 
 // ── Instructor list ────────────────────────────────────────────────────────

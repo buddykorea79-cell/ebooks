@@ -109,7 +109,15 @@ async function initAuth() {
     }
     if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
       showAuthState('login');
-      showError('auth-error', '서버에 인증이 설정되지 않았습니다. 관리자에게 문의하세요.');
+      // 어떤 환경변수가 빠졌는지까지 서버가 알려 준다
+      showError('auth-error', cfg.configError || '서버에 인증이 설정되지 않았습니다. 관리자에게 문의하세요.', true);
+      $('login-btn').disabled = true;
+      return;
+    }
+    if (!window.supabase || !window.supabase.createClient) {
+      // CDN(supabase-js) 로드 실패 — 사내망/광고차단 등
+      showAuthState('login');
+      showError('auth-error', '로그인 모듈을 불러오지 못했습니다. 네트워크 차단(광고차단 확장 등)을 확인하고 새로고침하세요.', true);
       $('login-btn').disabled = true;
       return;
     }
@@ -119,21 +127,30 @@ async function initAuth() {
     else showAuthState('login');
   } catch (e) {
     showAuthState('login');
-    showError('auth-error', '서버 오류가 발생했습니다.');
+    showError('auth-error', '서버 설정을 불러오지 못했습니다: ' + (e && e.message ? e.message : e), true);
   }
 }
 
 // 서버에 프로필 확인 (첫 로그인이면 pending 으로 자동 등록됨)
+//
+// ⚠️ 여기서 실패해도 Supabase 로그인 자체는 성공한 상태다.
+//    예전에는 원인과 무관하게 '인증에 실패했습니다'만 띄워서,
+//    서버 환경변수·테이블 문제까지 전부 '비밀번호가 틀린 것'처럼 보였다.
 async function checkProfile(token) {
   try {
     const res = await fetch('/api/instructor/session', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + token }
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!data.ok) {
+      // 토큰이 실제로 못 쓰는 상태일 때만 세션을 지운다.
+      // 서버 설정 문제라면 지워 봐야 다시 로그인해도 똑같이 실패한다.
+      if (data.code === 'INVALID_TOKEN' || data.code === 'NO_TOKEN') {
+        if (sb) await sb.auth.signOut();
+      }
       showAuthState('login');
-      showError('auth-error', data.error || '인증에 실패했습니다.');
+      showError('auth-error', data.error || `계정 확인에 실패했습니다 (HTTP ${res.status}).`, true);
       return;
     }
     myAccountName = data.name || '';
@@ -147,7 +164,7 @@ async function checkProfile(token) {
     }
   } catch (e) {
     showAuthState('login');
-    showError('auth-error', '서버 오류가 발생했습니다.');
+    showError('auth-error', '서버에 연결하지 못했습니다. 잠시 후 다시 시도하세요.', true);
   }
 }
 
@@ -155,7 +172,8 @@ $('login-form-el').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!sb) return;
 
-  const email = $('login-email').value.trim();
+  // 모바일 키보드가 첫 글자를 대문자로 바꾸는 일이 있어 소문자로 맞춘다
+  const email = $('login-email').value.trim().toLowerCase();
   const password = $('login-password').value;
   if (!email || !password) {
     showError('auth-error', '이메일과 비밀번호를 입력하세요.');
@@ -171,10 +189,15 @@ $('login-form-el').addEventListener('submit', async (e) => {
       showError('auth-error', authErrorMessage(error));
       return;
     }
+    if (!data || !data.session) {
+      // 이메일 인증 대기 등 — 로그인은 받아들여졌지만 세션이 없는 경우
+      showError('auth-error', '세션을 받지 못했습니다. 이메일 인증이 끝난 계정인지 확인하세요.', true);
+      return;
+    }
     $('login-password').value = '';
     await checkProfile(data.session.access_token);
   } catch (err) {
-    showError('auth-error', '서버 오류가 발생했습니다.');
+    showError('auth-error', '로그인 처리 중 오류가 발생했습니다: ' + (err && err.message ? err.message : err), true);
   } finally {
     btn.disabled = false;
     btn.textContent = '로그인';
@@ -201,12 +224,17 @@ $('setup-logout-btn').addEventListener('click', (e) => { e.preventDefault(); doL
 
 initAuth();
 
-function showError(id, msg) {
+// persist=true 면 자동으로 사라지지 않는다.
+// (설정 문제 안내는 4초 만에 사라지면 원인을 읽을 새가 없다)
+function showError(id, msg, persist) {
   const el = $(id);
   if (!el) return;
+  if (el._hideTimer) clearTimeout(el._hideTimer);
   el.textContent = msg;
   el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, 4000);
+  if (!persist) {
+    el._hideTimer = setTimeout(() => { el.style.display = 'none'; }, 4000);
+  }
 }
 
 // ── Setup ──────────────────────────────────────────────────────────────────
@@ -713,11 +741,11 @@ async function sendAiMessage() {
 
 // ── App error ──────────────────────────────────────────────────────────────
 socket.on('app:error', ({ message, code }) => {
-  // 인증 만료/미승인 — 로그인 화면으로
+  // 인증 만료/미승인 — 로그인 화면으로 (원인 안내는 남겨 둔다)
   if (code === 'AUTH') {
     showScreen('screen-auth');
     showAuthState('login');
-    showError('auth-error', message);
+    showError('auth-error', message, true);
     return;
   }
   // 입장 전(설정 화면) 단계의 오류는 설정 화면에 표시하고 머무름
