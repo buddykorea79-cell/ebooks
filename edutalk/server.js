@@ -349,9 +349,32 @@ app.use(express.static(path.join(__dirname, 'public')));
 //
 // 서버가 이미 의존성으로 갖고 있는 파일을 그대로 주면 버전도 서버와 일치하고,
 // CDN 차단·오프라인 환경에서도 동작한다. (socket.io 클라이언트와 같은 방식)
-const SUPABASE_UMD_PATH = require.resolve('@supabase/supabase-js/dist/umd/supabase.js');
+//
+// 경로 해석이 실패해도 서버가 죽지 않게 감싼다. 최상위에서 throw 되면 로그인만이 아니라
+// 강의방 전체가 뜨지 않는다 — 원래 문제보다 나쁜 상황이 된다.
+let SUPABASE_UMD_PATH = null;
+try {
+  SUPABASE_UMD_PATH = require.resolve('@supabase/supabase-js/dist/umd/supabase.js');
+} catch (e) {
+  console.error(
+    `⚠️  supabase-js 브라우저 번들을 찾지 못했습니다 (${e.message}).\n` +
+    '    edutalk 폴더에서 npm install 이 정상적으로 끝났는지 확인하세요. 로그인이 막힙니다.'
+  );
+}
+
 app.get('/vendor/supabase.js', (req, res) => {
   res.type('application/javascript');
+  if (!SUPABASE_UMD_PATH) {
+    // 404 대신 '왜 안 되는지 말해 주는 스크립트'를 준다.
+    // 이러면 로그인 화면이 안내 문구를 띄울 수 있다(window.supabase 가 없으므로).
+    res
+      .status(500)
+      .send(
+        'console.error("EduTalk: supabase-js 번들을 서버에서 찾지 못했습니다. ' +
+          '서버 로그와 /api/health 를 확인하세요.");',
+      );
+    return;
+  }
   res.sendFile(SUPABASE_UMD_PATH);
 });
 app.use('/uploads', express.static(uploadsDir, {
@@ -416,9 +439,11 @@ app.get('/api/health', async (req, res) => {
   }
 
   res.json({
-    ok: missingEnv.length === 0 && instructorProfilesTable === 'ok',
+    ok: missingEnv.length === 0 && instructorProfilesTable === 'ok' && Boolean(SUPABASE_UMD_PATH),
     env,
     missingEnv,
+    // 로그인 화면이 쓰는 supabase-js 번들을 서버가 갖고 있는지
+    browserBundle: SUPABASE_UMD_PATH ? 'ok' : 'missing (edutalk 에서 npm install 확인 필요)',
     instructorProfilesTable,
     profilesLoaded,
     profileCount: instructorProfiles.length,
