@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Book, BookMenu } from '../types/database'
 import { fetchBook } from '../api/books'
@@ -6,10 +6,14 @@ import { fetchMenus } from '../api/menus'
 import { hasSingleContent, loadSingleContent } from '../api/single'
 import { buildMenuTree } from '../lib/menuTree'
 import { MARKDOWN_BASE_CSS, renderMarkdown, splitMarkdownSections } from '../lib/markdown'
+import { canRenderPdfInIframe } from '../lib/pdfInline'
 import ErrorAlert from '../components/ErrorAlert'
 import HtmlViewer from '../components/HtmlViewer'
 import Sidebar from '../components/Sidebar'
 import TypeBadge from '../components/TypeBadge'
+
+// pdf.js는 덩치가 커서 내장 뷰어가 없는 기기에서만 내려받는다
+const PdfViewer = lazy(() => import('../components/PdfViewer'))
 
 export default function BookViewerPage() {
   const { bookId, menuId } = useParams<{ bookId: string; menuId: string }>()
@@ -23,6 +27,8 @@ export default function BookViewerPage() {
   const [singleText, setSingleText] = useState<string | null>(null)
   const [singleLoading, setSingleLoading] = useState(false)
   const [singleError, setSingleError] = useState<string | null>(null)
+  // 브라우저 기본 PDF 뷰어를 쓸 수 있는지 — 기기 특성이라 한 번만 본다
+  const [nativePdf] = useState(canRenderPdfInIframe)
 
   const isSingle = book !== null && (book.source_mode ?? 'menu') === 'single'
   const isPdf = book !== null && book.source_mode === 'pdf'
@@ -130,9 +136,14 @@ export default function BookViewerPage() {
   }
 
   // ---------------------------------------------------------------
-  // PDF 모드: 브라우저 기본 PDF 뷰어에 맡기고 화면 전체를 준다.
+  // PDF 모드: 화면 전체를 PDF에 준다.
+  //
+  // 데스크톱은 브라우저 기본 PDF 뷰어에 맡긴다(검색·인쇄가 딸려 온다).
   // HtmlViewer(sandbox iframe) 안에 넣으면 sandbox가 중첩 전파돼 표시가 막힐 수 있고,
   // 우리 R2에 있는 신뢰된 파일이라 격리할 이유도 없다.
+  //
+  // 모바일에는 그 기본 뷰어가 없어 같은 iframe이 빈 화면이 되거나 내려받기로 넘어간다.
+  // 그래서 pdf.js로 직접 그린다(PdfViewer).
   // ---------------------------------------------------------------
   if (isPdf) {
     return (
@@ -163,14 +174,24 @@ export default function BookViewerPage() {
             </a>
           )}
         </div>
-        {book.pdf_url ? (
+        {!book.pdf_url ? (
+          <p className="px-6 py-10 text-gray-500">아직 업로드된 PDF가 없습니다.</p>
+        ) : nativePdf ? (
           <iframe
             src={book.pdf_url}
             title={`${book.title} PDF`}
             className="min-h-0 flex-1 w-full border-0 bg-gray-100"
           />
         ) : (
-          <p className="px-6 py-10 text-gray-500">아직 업로드된 PDF가 없습니다.</p>
+          <Suspense
+            fallback={
+              <p className="min-h-0 flex-1 bg-gray-100 py-16 text-center text-sm text-gray-500">
+                뷰어를 준비하는 중…
+              </p>
+            }
+          >
+            <PdfViewer url={book.pdf_url} />
+          </Suspense>
         )}
       </div>
     )
