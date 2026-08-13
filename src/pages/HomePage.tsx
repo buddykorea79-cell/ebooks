@@ -221,8 +221,8 @@ export default function HomePage() {
             AI · IT · 교육 교재
           </span>
           <h1 className="mt-5 text-3xl leading-tight font-extrabold tracking-tight text-gray-900 sm:text-[2.6rem]">
-            AI와 IT 지식을
-            <br className="hidden sm:block" /> 한 권으로 정리하는 공간
+            오늘의 AI, IT 이야기가 모여,
+            <br className="hidden sm:block" /> 내일을 그려보는 공간
           </h1>
           <p className="mt-5 text-base leading-relaxed text-gray-600 sm:text-lg">
             <span className="font-semibold text-gray-800">LibroSpace</span>는 AI·IT 분야의 도서와
