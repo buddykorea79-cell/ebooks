@@ -10,6 +10,8 @@ interface SidebarProps {
   activeMenuId: string | null
   /** 메뉴 클릭 시 호출 — 모바일 드로어를 닫는 용도 */
   onNavigate?: () => void
+  onShare?: () => void
+  shareMessage?: string | null
 }
 
 function TreeItem({
@@ -59,7 +61,14 @@ function TreeItem({
 }
 
 /** 공개 뷰어 좌측 사이드바 — 메뉴 트리 재귀 렌더 */
-export default function Sidebar({ book, menus, activeMenuId, onNavigate }: SidebarProps) {
+export default function Sidebar({
+  book,
+  menus,
+  activeMenuId,
+  onNavigate,
+  onShare,
+  shareMessage,
+}: SidebarProps) {
   const tree = buildMenuTree(menus)
   return (
     <aside className="flex h-full w-80 shrink-0 flex-col border-r border-gray-200 bg-white">
@@ -82,6 +91,18 @@ export default function Sidebar({ book, menus, activeMenuId, onNavigate }: Sideb
           )}
         </div>
         <h1 className="mt-1 break-words text-lg font-bold leading-snug">{book.title}</h1>
+        {onShare && (
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onShare}
+              className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-100"
+            >
+              공유하기
+            </button>
+            {shareMessage && <span className="text-xs text-emerald-600">{shareMessage}</span>}
+          </div>
+        )}
       </div>
       <nav className="flex-1 overflow-y-auto p-2">
         {tree.length === 0 ? (

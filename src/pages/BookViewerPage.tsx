@@ -260,6 +260,14 @@ export default function BookViewerPage() {
             </span>
           )}
           <span className="min-w-0 truncate text-sm font-semibold">{book.title}</span>
+          <button
+            type="button"
+            onClick={handleShare}
+            className="shrink-0 rounded border border-gray-300 px-2.5 py-1 text-sm text-gray-700 hover:bg-gray-100"
+          >
+            공유하기
+          </button>
+          {shareMsg && <span className="shrink-0 text-xs text-emerald-600">{shareMsg}</span>}
         </div>
         <main className="bg-white">
           {singleLoading && <p className="px-6 py-10 text-gray-500">본문을 불러오는 중…</p>}
@@ -316,6 +324,13 @@ export default function BookViewerPage() {
           ☰ 목차
         </button>
         <span className="min-w-0 truncate text-sm font-semibold">{book.title}</span>
+        <button
+          type="button"
+          onClick={handleShare}
+          className="shrink-0 rounded border border-gray-300 px-2.5 py-1 text-sm text-gray-700 hover:bg-gray-100"
+        >
+          공유하기
+        </button>
       </div>
 
       {/* 모바일 드로어 배경 */}
@@ -338,6 +353,8 @@ export default function BookViewerPage() {
           menus={effectiveMenus ?? []}
           activeMenuId={menuId ?? null}
           onNavigate={() => setSidebarOpen(false)}
+          onShare={handleShare}
+          shareMessage={shareMsg}
         />
       </div>
 
