@@ -78,16 +78,32 @@ function stripOptionalColumns(
   return rest
 }
 
-/** 공개된 도서 목록 (홈). type을 주면 해당 유형만 필터 */
+/**
+ * 공개된 도서 목록 (홈). 공개 도서 전체 + 그룹공개 도서 중 내가 볼 수 있는 것
+ * (RLS의 can_view_book()이 실제 열람 권한을 최종 판정하므로, 여기서는 후보만 넓게 요청한다).
+ * type을 주면 해당 유형만 필터.
+ */
 export async function fetchPublishedBooks(type?: BookType): Promise<Book[]> {
   let query = supabase
     .from('books')
     .select('*')
-    .eq('is_published', true)
+    .or('is_published.eq.true,visibility.eq.group')
     .order('created_at', { ascending: false })
   if (type) query = query.eq('type', type)
   const { data, error } = await query
-  if (error) throw error
+  if (error) {
+    // book-visibility.sql 실행 전에는 visibility 컬럼이 없어 or 조건이 실패한다 → 기존 필터로 재시도
+    if (!error.message?.includes('visibility')) throw error
+    let fallback = supabase
+      .from('books')
+      .select('*')
+      .eq('is_published', true)
+      .order('created_at', { ascending: false })
+    if (type) fallback = fallback.eq('type', type)
+    const retry = await fallback
+    if (retry.error) throw retry.error
+    return retry.data as Book[]
+  }
   return data as Book[]
 }
 

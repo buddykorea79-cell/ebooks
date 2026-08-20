@@ -1,6 +1,7 @@
 import { useEffect, useState, type MouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { Book, Category, HomeLayout } from '../types/database'
+import { resolveBookVisibility } from '../types/database'
 import { fetchPublishedBooks } from '../api/books'
 import { fetchCategories } from '../api/categories'
 import { fetchNicknames } from '../api/profiles'
@@ -161,6 +162,7 @@ export default function HomePage() {
   }
 
   const all = books ?? []
+  const hasGroupBooks = all.some((b) => resolveBookVisibility(b) === 'group')
   const hasUncategorized = all.some(
     (b) => !b.category_id || !categories.some((c) => c.id === b.category_id),
   )
@@ -263,11 +265,13 @@ export default function HomePage() {
 
       <div id="books" className="mt-12 flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">공개 도서</h2>
+          <h2 className="text-2xl font-bold tracking-tight">도서</h2>
           <p className="mt-1 text-sm text-gray-500">
             {books === null
               ? '불러오는 중…'
-              : `누구나 읽을 수 있는 ${all.length}권이 올라와 있습니다.`}
+              : hasGroupBooks
+                ? `공개 도서와 내가 속한 그룹의 도서를 합쳐 ${all.length}권이 올라와 있습니다.`
+                : `누구나 읽을 수 있는 ${all.length}권이 올라와 있습니다.`}
           </p>
         </div>
         {books !== null && visible.length > 0 && !splitSections && (
@@ -318,8 +322,8 @@ export default function HomePage() {
         <div className="mt-6 rounded-xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center">
           <p className="text-base font-medium text-gray-700">
             {filter === 'all'
-              ? '아직 공개된 도서가 없습니다.'
-              : '이 분류에는 아직 공개된 도서가 없습니다.'}
+              ? '아직 볼 수 있는 도서가 없습니다.'
+              : '이 분류에는 아직 볼 수 있는 도서가 없습니다.'}
           </p>
           <p className="mt-1.5 text-sm text-gray-500">
             내 서재에서 첫 도서를 만들어 공개해 보세요.
@@ -355,6 +359,11 @@ export default function HomePage() {
                     </div>
                   </div>
                   <div className="flex flex-1 flex-col p-4">
+                    {resolveBookVisibility(book) === 'group' && (
+                      <span className="mb-1 inline-block w-fit rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                        그룹공개
+                      </span>
+                    )}
                     <h3 className="text-sm leading-snug font-semibold break-keep text-gray-900 group-hover:text-brand-700 sm:text-[15px]">
                       {book.title}
                     </h3>
