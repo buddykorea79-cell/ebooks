@@ -55,14 +55,14 @@ grant execute on function public.set_user_group_leader(uuid, boolean) to authent
 -- 3. 테이블
 -- -------------------------------------------------------------
 
-create table public.groups (
+create table if not exists public.groups (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   leader_id uuid not null references auth.users(id) on delete cascade,
   created_at timestamptz not null default now()
 );
 
-create table public.group_members (
+create table if not exists public.group_members (
   id uuid primary key default gen_random_uuid(),
   group_id uuid not null references public.groups(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -70,9 +70,9 @@ create table public.group_members (
   unique (group_id, user_id)
 );
 
-create index groups_leader_id_idx on public.groups(leader_id);
-create index group_members_group_id_idx on public.group_members(group_id);
-create index group_members_user_id_idx on public.group_members(user_id);
+create index if not exists groups_leader_id_idx on public.groups(leader_id);
+create index if not exists group_members_group_id_idx on public.group_members(group_id);
+create index if not exists group_members_user_id_idx on public.group_members(user_id);
 
 -- -------------------------------------------------------------
 -- 4. 본인 그룹 소속을 통째로 교체하는 함수
@@ -175,24 +175,29 @@ alter table public.groups enable row level security;
 alter table public.group_members enable row level security;
 
 -- groups: 누구나 조회 가능 (회원가입 화면에서 목록을 보여줘야 함)
+drop policy if exists "groups_select_all" on public.groups;
 create policy "groups_select_all"
   on public.groups for select
   using (true);
 
+drop policy if exists "groups_insert" on public.groups;
 create policy "groups_insert"
   on public.groups for insert
   with check (leader_id = auth.uid() and public.is_group_leader());
 
+drop policy if exists "groups_update" on public.groups;
 create policy "groups_update"
   on public.groups for update
   using (leader_id = auth.uid() or public.is_admin())
   with check (leader_id = auth.uid() or public.is_admin());
 
+drop policy if exists "groups_delete" on public.groups;
 create policy "groups_delete"
   on public.groups for delete
   using (leader_id = auth.uid() or public.is_admin());
 
 -- group_members: 본인 행 또는 해당 그룹의 리더 또는 관리자만 조회
+drop policy if exists "group_members_select" on public.group_members;
 create policy "group_members_select"
   on public.group_members for select
   using (
@@ -207,6 +212,7 @@ create policy "group_members_select"
 -- insert는 트리거(security definer)와 set_my_groups() 함수를 통해서만 이뤄진다.
 -- 클라이언트가 직접 insert하지 못하도록 정책을 두지 않는다.
 
+drop policy if exists "group_members_delete" on public.group_members;
 create policy "group_members_delete"
   on public.group_members for delete
   using (

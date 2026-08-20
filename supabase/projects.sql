@@ -11,7 +11,7 @@
 -- 1. 테이블
 -- -------------------------------------------------------------
 
-create table public.projects (
+create table if not exists public.projects (
   id uuid primary key default gen_random_uuid(),
   group_id uuid not null references public.groups(id) on delete cascade,
   title text not null,
@@ -21,7 +21,7 @@ create table public.projects (
   updated_at timestamptz not null default now()
 );
 
-create table public.project_posts (
+create table if not exists public.project_posts (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references public.projects(id) on delete cascade,
   author_id uuid not null references auth.users(id) on delete cascade,
@@ -37,7 +37,7 @@ create table public.project_posts (
   updated_at timestamptz not null default now()
 );
 
-create table public.project_post_files (
+create table if not exists public.project_post_files (
   id uuid primary key default gen_random_uuid(),
   post_id uuid not null references public.project_posts(id) on delete cascade,
   url text not null,
@@ -46,14 +46,16 @@ create table public.project_post_files (
   created_at timestamptz not null default now()
 );
 
-create index projects_group_id_idx on public.projects(group_id);
-create index project_posts_project_id_idx on public.project_posts(project_id);
-create index project_post_files_post_id_idx on public.project_post_files(post_id);
+create index if not exists projects_group_id_idx on public.projects(group_id);
+create index if not exists project_posts_project_id_idx on public.project_posts(project_id);
+create index if not exists project_post_files_post_id_idx on public.project_post_files(post_id);
 
+drop trigger if exists projects_set_updated_at on public.projects;
 create trigger projects_set_updated_at
   before update on public.projects
   for each row execute function public.set_updated_at();
 
+drop trigger if exists project_posts_set_updated_at on public.project_posts;
 create trigger project_posts_set_updated_at
   before update on public.project_posts
   for each row execute function public.set_updated_at();
@@ -67,6 +69,7 @@ alter table public.project_posts enable row level security;
 alter table public.project_post_files enable row level security;
 
 -- projects: 해당 그룹의 리더이거나 그룹원이거나 관리자만 조회
+drop policy if exists "projects_select" on public.projects;
 create policy "projects_select"
   on public.projects for select
   using (
@@ -81,6 +84,7 @@ create policy "projects_select"
     )
   );
 
+drop policy if exists "projects_insert" on public.projects;
 create policy "projects_insert"
   on public.projects for insert
   with check (
@@ -91,6 +95,7 @@ create policy "projects_insert"
     )
   );
 
+drop policy if exists "projects_update" on public.projects;
 create policy "projects_update"
   on public.projects for update
   using (
@@ -108,6 +113,7 @@ create policy "projects_update"
     )
   );
 
+drop policy if exists "projects_delete" on public.projects;
 create policy "projects_delete"
   on public.projects for delete
   using (
@@ -119,6 +125,7 @@ create policy "projects_delete"
   );
 
 -- project_posts: 해당 그룹의 리더 또는 그룹원 모두 조회/작성 가능
+drop policy if exists "project_posts_select" on public.project_posts;
 create policy "project_posts_select"
   on public.project_posts for select
   using (
@@ -135,6 +142,7 @@ create policy "project_posts_select"
     )
   );
 
+drop policy if exists "project_posts_insert" on public.project_posts;
 create policy "project_posts_insert"
   on public.project_posts for insert
   with check (
@@ -153,6 +161,7 @@ create policy "project_posts_insert"
     )
   );
 
+drop policy if exists "project_posts_update" on public.project_posts;
 create policy "project_posts_update"
   on public.project_posts for update
   using (
@@ -174,6 +183,7 @@ create policy "project_posts_update"
     )
   );
 
+drop policy if exists "project_posts_delete" on public.project_posts;
 create policy "project_posts_delete"
   on public.project_posts for delete
   using (
@@ -187,6 +197,7 @@ create policy "project_posts_delete"
   );
 
 -- project_post_files: project_posts와 동일한 규칙 (post를 조인해서 확인)
+drop policy if exists "project_post_files_select" on public.project_post_files;
 create policy "project_post_files_select"
   on public.project_post_files for select
   using (
@@ -209,6 +220,7 @@ create policy "project_post_files_select"
     )
   );
 
+drop policy if exists "project_post_files_insert" on public.project_post_files;
 create policy "project_post_files_insert"
   on public.project_post_files for insert
   with check (
@@ -218,6 +230,7 @@ create policy "project_post_files_insert"
     )
   );
 
+drop policy if exists "project_post_files_delete" on public.project_post_files;
 create policy "project_post_files_delete"
   on public.project_post_files for delete
   using (
