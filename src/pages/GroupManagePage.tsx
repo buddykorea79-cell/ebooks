@@ -8,6 +8,7 @@ import {
 } from '../api/groups'
 import { fetchNicknames } from '../api/profiles'
 import type { Group, GroupMember } from '../types/database'
+import { MAX_GROUP_DESCRIPTION_LENGTH } from '../types/database'
 import ErrorAlert from '../components/ErrorAlert'
 
 const inputClass =
@@ -85,6 +86,7 @@ export default function GroupManagePage() {
   const { user, isAdmin, isGroupLeader } = useAuth()
   const [groups, setGroups] = useState<Group[] | null>(null)
   const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
 
@@ -112,8 +114,9 @@ export default function GroupManagePage() {
     setError(null)
     setCreating(true)
     try {
-      await createGroup(name.trim(), user.id)
+      await createGroup(name.trim(), user.id, description.trim())
       setName('')
+      setDescription('')
       await load()
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -141,28 +144,45 @@ export default function GroupManagePage() {
 
       <form
         onSubmit={handleCreate}
-        className="mt-6 flex items-end gap-2 rounded-lg border border-gray-200 bg-white p-4"
+        className="mt-6 rounded-lg border border-gray-200 bg-white p-4"
       >
-        <div className="flex-1">
-          <label htmlFor="group-name" className="block text-sm font-medium text-gray-700">
-            + 새 그룹
+        <h2 className="text-sm font-medium text-gray-700">+ 새 그룹</h2>
+        <div className="mt-2 flex items-end gap-2">
+          <div className="flex-1">
+            <label htmlFor="group-name" className="sr-only">
+              그룹 이름
+            </label>
+            <input
+              id="group-name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="그룹 이름"
+              className={inputClass}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={creating}
+            className="rounded bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            {creating ? '만드는 중…' : '만들기'}
+          </button>
+        </div>
+        <div className="mt-2">
+          <label htmlFor="group-description" className="block text-xs text-gray-500">
+            설명 <span className="text-gray-400">(선택, 최대 {MAX_GROUP_DESCRIPTION_LENGTH}자)</span>
           </label>
-          <input
-            id="group-name"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="그룹 이름"
+          <textarea
+            id="group-description"
+            rows={2}
+            maxLength={MAX_GROUP_DESCRIPTION_LENGTH}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="그룹 설명"
             className={inputClass}
           />
         </div>
-        <button
-          type="submit"
-          disabled={creating}
-          className="rounded bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-        >
-          {creating ? '만드는 중…' : '만들기'}
-        </button>
       </form>
 
       {error && (
@@ -182,6 +202,7 @@ export default function GroupManagePage() {
           {groups.map((g) => (
             <li key={g.id} className="rounded-lg border border-gray-200 bg-white p-4">
               <h2 className="text-lg font-semibold">{g.name}</h2>
+              {g.description && <p className="mt-1 text-sm text-gray-500">{g.description}</p>}
               <MemberList group={g} />
             </li>
           ))}

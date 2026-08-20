@@ -74,6 +74,20 @@ create index if not exists groups_leader_id_idx on public.groups(leader_id);
 create index if not exists group_members_group_id_idx on public.group_members(group_id);
 create index if not exists group_members_user_id_idx on public.group_members(user_id);
 
+-- 그룹 설명 (선택, 최대 100자)
+alter table public.groups
+  add column if not exists description text;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'groups_description_length'
+  ) then
+    alter table public.groups add constraint groups_description_length
+      check (description is null or char_length(description) <= 100);
+  end if;
+end $$;
+
 -- -------------------------------------------------------------
 -- 4. 본인 그룹 소속을 통째로 교체하는 함수
 --    회원가입 직후(트리거) 및 '내 정보 수정' 화면에서 함께 쓴다.
@@ -183,7 +197,7 @@ create policy "groups_select_all"
 drop policy if exists "groups_insert" on public.groups;
 create policy "groups_insert"
   on public.groups for insert
-  with check (leader_id = auth.uid() and public.is_group_leader());
+  with check (leader_id = auth.uid() and (public.is_group_leader() or public.is_admin()));
 
 drop policy if exists "groups_update" on public.groups;
 create policy "groups_update"

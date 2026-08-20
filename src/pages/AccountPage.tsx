@@ -14,6 +14,7 @@ export default function AccountPage() {
   const [nickname, setNickname] = useState('')
   const [groups, setGroups] = useState<Group[]>([])
   const [groupIds, setGroupIds] = useState<string[]>([])
+  const [groupSearch, setGroupSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [nicknameSaving, setNicknameSaving] = useState(false)
@@ -148,20 +149,31 @@ export default function AccountPage() {
         {groups.length === 0 ? (
           <p className="mt-2 text-sm text-gray-500">아직 만들어진 그룹이 없습니다.</p>
         ) : (
-          <div className="mt-2 flex flex-col gap-1.5">
-            {groups.map((g) => (
-              <label key={g.id} className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={groupIds.includes(g.id)}
-                  onChange={() => toggleGroup(g.id)}
-                  disabled={!groupIds.includes(g.id) && groupIds.length >= MAX_GROUPS_PER_MEMBER}
-                  className="h-4 w-4"
-                />
-                {g.name}
-              </label>
-            ))}
-          </div>
+          <>
+            <input
+              type="text"
+              value={groupSearch}
+              onChange={(e) => setGroupSearch(e.target.value)}
+              placeholder="그룹명 검색"
+              className={inputClass}
+            />
+            <div className="mt-2 flex flex-col gap-1.5">
+              {groups
+                .filter((g) => g.name.toLowerCase().includes(groupSearch.trim().toLowerCase()))
+                .map((g) => (
+                  <label key={g.id} className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={groupIds.includes(g.id)}
+                      onChange={() => toggleGroup(g.id)}
+                      disabled={!groupIds.includes(g.id) && groupIds.length >= MAX_GROUPS_PER_MEMBER}
+                      className="h-4 w-4"
+                    />
+                    {g.name}
+                  </label>
+                ))}
+            </div>
+          </>
         )}
         <div className="mt-3 flex items-center gap-3">
           <button

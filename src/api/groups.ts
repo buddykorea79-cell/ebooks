@@ -46,10 +46,14 @@ export async function fetchMyGroups(userId: string): Promise<Group[]> {
   return [...led, ...member]
 }
 
-export async function createGroup(name: string, leaderId: string): Promise<Group> {
+export async function createGroup(
+  name: string,
+  leaderId: string,
+  description?: string,
+): Promise<Group> {
   const { data, error } = await supabase
     .from('groups')
-    .insert({ name, leader_id: leaderId })
+    .insert({ name, leader_id: leaderId, description: description?.trim() || null })
     .select('*')
     .single()
   if (error) throw error

@@ -32,10 +32,15 @@ export interface Profile {
   created_at: string
 }
 
+/** 그룹 설명 최대 길이 (groups.sql의 check 제약과 동일) */
+export const MAX_GROUP_DESCRIPTION_LENGTH = 100
+
 /** 회원이 소속될 수 있는 그룹 (groups.sql) */
 export interface Group {
   id: string
   name: string
+  /** 그룹 설명(선택, 최대 100자). description 컬럼 추가 전에는 undefined */
+  description?: string | null
   leader_id: string
   created_at: string
 }

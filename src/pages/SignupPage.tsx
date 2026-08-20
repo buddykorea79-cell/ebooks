@@ -15,6 +15,7 @@ export default function SignupPage() {
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [groups, setGroups] = useState<Group[]>([])
   const [groupIds, setGroupIds] = useState<string[]>([])
+  const [groupSearch, setGroupSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [needsEmailConfirm, setNeedsEmailConfirm] = useState(false)
@@ -162,19 +163,28 @@ export default function SignupPage() {
             <span className="block text-sm font-medium text-gray-700">
               그룹 선택 <span className="text-xs text-gray-400">(선택, 최대 {MAX_GROUPS_PER_MEMBER}개)</span>
             </span>
+            <input
+              type="text"
+              value={groupSearch}
+              onChange={(e) => setGroupSearch(e.target.value)}
+              placeholder="그룹명 검색"
+              className="mt-1.5 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
+            />
             <div className="mt-1.5 flex flex-col gap-1.5 rounded border border-gray-200 p-2.5">
-              {groups.map((g) => (
-                <label key={g.id} className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={groupIds.includes(g.id)}
-                    onChange={() => toggleGroup(g.id)}
-                    disabled={!groupIds.includes(g.id) && groupIds.length >= MAX_GROUPS_PER_MEMBER}
-                    className="h-4 w-4"
-                  />
-                  {g.name}
-                </label>
-              ))}
+              {groups
+                .filter((g) => g.name.toLowerCase().includes(groupSearch.trim().toLowerCase()))
+                .map((g) => (
+                  <label key={g.id} className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={groupIds.includes(g.id)}
+                      onChange={() => toggleGroup(g.id)}
+                      disabled={!groupIds.includes(g.id) && groupIds.length >= MAX_GROUPS_PER_MEMBER}
+                      className="h-4 w-4"
+                    />
+                    {g.name}
+                  </label>
+                ))}
             </div>
           </div>
         )}
