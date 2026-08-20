@@ -10,7 +10,7 @@ const inputClass =
   'mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none'
 
 export default function AccountPage() {
-  const { user, refreshProfile } = useAuth()
+  const { user, isAdmin, isGroupLeader, refreshProfile } = useAuth()
   const [nickname, setNickname] = useState('')
   const [groups, setGroups] = useState<Group[]>([])
   const [groupIds, setGroupIds] = useState<string[]>([])
@@ -105,6 +105,23 @@ export default function AccountPage() {
   return (
     <div className="mx-auto max-w-md">
       <h1 className="text-2xl font-bold">내 정보</h1>
+      <div className="mt-2 flex gap-1.5">
+        {isAdmin === true && (
+          <span className="inline-block rounded bg-brand-100 px-1.5 py-0.5 text-xs font-medium text-brand-700">
+            관리자
+          </span>
+        )}
+        {isGroupLeader && (
+          <span className="inline-block rounded bg-sky-100 px-1.5 py-0.5 text-xs font-medium text-sky-700">
+            그룹리더
+          </span>
+        )}
+        {isAdmin === false && !isGroupLeader && (
+          <span className="inline-block rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-500">
+            회원
+          </span>
+        )}
+      </div>
 
       {error && (
         <div className="mt-4">
