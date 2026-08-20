@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { fetchProfile, setMyGroups, updateMyNickname } from '../api/profiles'
 import { fetchGroups, fetchMyGroups } from '../api/groups'
@@ -203,6 +204,21 @@ export default function AccountPage() {
           {groupsSaved && <span className="text-sm text-emerald-600">저장했습니다.</span>}
         </div>
       </form>
+
+      {(isGroupLeader || isAdmin === true) && (
+        <Link
+          to="/groups"
+          className="mt-4 flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4 transition-colors hover:border-brand-300 hover:bg-brand-50"
+        >
+          <div>
+            <h2 className="text-lg font-semibold">그룹 관리</h2>
+            <p className="mt-0.5 text-sm text-gray-500">
+              내가 만든 그룹을 관리하고 그룹원을 확인·탈퇴시킬 수 있습니다.
+            </p>
+          </div>
+          <span className="text-brand-600">→</span>
+        </Link>
+      )}
     </div>
   )
 }

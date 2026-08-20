@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
   createGroup,
@@ -140,7 +141,10 @@ export default function GroupManagePage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h1 className="text-2xl font-bold">그룹 관리</h1>
+      <Link to="/account" className="text-xs text-brand-600 hover:underline">
+        ← 내 정보
+      </Link>
+      <h1 className="mt-2 text-2xl font-bold">그룹 관리</h1>
 
       <form
         onSubmit={handleCreate}

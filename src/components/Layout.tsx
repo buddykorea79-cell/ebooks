@@ -69,7 +69,7 @@ function HeaderSearch() {
 }
 
 export default function Layout() {
-  const { user, nickname, isAdmin, isGroupLeader } = useAuth()
+  const { user, nickname, isAdmin } = useAuth()
   const navigate = useNavigate()
   const [signingOut, setSigningOut] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -116,11 +116,6 @@ export default function Layout() {
             {user && (
               <NavLink to="/account" className={navClass}>
                 내 정보
-              </NavLink>
-            )}
-            {(isGroupLeader || isAdmin === true) && (
-              <NavLink to="/groups" className={navClass}>
-                그룹 관리
               </NavLink>
             )}
             {isAdmin === true && (

@@ -323,7 +323,8 @@ export default function DocsPage() {
             있습니다.
           </li>
           <li>
-            그룹리더이거나 관리자면 헤더 메뉴에 <strong>그룹 관리</strong> 링크가 나타납니다. 여기서{' '}
+            그룹리더이거나 관리자면 <strong>내 정보</strong> 화면 아래쪽에{' '}
+            <strong>그룹 관리</strong> 카드가 나타납니다. 여기서{' '}
             <strong>+ 새 그룹</strong>으로 그룹을 만들 때 이름과 함께 최대 100자의{' '}
             <strong>설명</strong>도 남길 수 있고, 만든 그룹의 멤버 목록·탈퇴 처리도 이 화면에서
             합니다.
@@ -387,7 +388,7 @@ export default function DocsPage() {
             <dt className="font-semibold">Q. 그룹을 만들고 싶어요.</dt>
             <dd className="mt-0.5">
               그룹리더 또는 관리자만 만들 수 있습니다. 그룹리더 권한이 필요하면 관리자에게
-              요청하세요. 권한이 있다면 헤더의 <strong>그룹 관리</strong> 메뉴에서 만들 수
+              요청하세요. 권한이 있다면 <strong>내 정보 → 그룹 관리</strong>에서 만들 수
               있습니다.
             </dd>
           </div>
