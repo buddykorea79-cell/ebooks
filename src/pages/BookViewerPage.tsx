@@ -30,6 +30,7 @@ export default function BookViewerPage() {
   const [singleError, setSingleError] = useState<string | null>(null)
   // 브라우저 기본 PDF 뷰어를 쓸 수 있는지 — 기기 특성이라 한 번만 본다
   const [nativePdf] = useState(canRenderPdfInIframe)
+  const [shareMsg, setShareMsg] = useState<string | null>(null)
 
   const isSingle = book !== null && (book.source_mode ?? 'menu') === 'single'
   const isPdf = book !== null && book.source_mode === 'pdf'
@@ -101,6 +102,26 @@ export default function BookViewerPage() {
   }, [book, isSingle, isMarkdown, singleText])
 
   const effectiveMenus = virtualMenus ?? menus
+
+  // 도서 주소 공유 — 지원 기기는 공유 시트, 아니면 클립보드 복사로 대체
+  async function handleShare() {
+    const url = window.location.href
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: book?.title, url })
+      } catch {
+        // 사용자가 공유를 취소한 경우 등 — 조용히 무시
+      }
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(url)
+      setShareMsg('링크를 복사했습니다.')
+    } catch {
+      setShareMsg('복사에 실패했습니다.')
+    }
+    setTimeout(() => setShareMsg(null), 2000)
+  }
 
   // menuId 없이 들어오면 트리상 첫 메뉴로 이동 (메뉴가 없는 모드는 제외)
   useEffect(() => {
@@ -180,6 +201,14 @@ export default function BookViewerPage() {
               내려받기 ↓
             </a>
           )}
+          <button
+            type="button"
+            onClick={handleShare}
+            className="shrink-0 rounded border border-gray-300 px-2.5 py-1 text-sm text-gray-700 hover:bg-gray-100"
+          >
+            공유하기
+          </button>
+          {shareMsg && <span className="shrink-0 text-xs text-emerald-600">{shareMsg}</span>}
         </div>
         {!book.pdf_url ? (
           <p className="px-6 py-10 text-gray-500">아직 업로드된 PDF가 없습니다.</p>
