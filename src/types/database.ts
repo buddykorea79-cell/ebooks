@@ -25,8 +25,67 @@ export interface Profile {
   nickname: string
   /** admin.sql 실행 전에는 컬럼이 없어 undefined */
   is_admin?: boolean
+  /** 그룹리더 여부. groups.sql 실행 전에는 컬럼이 없어 undefined */
+  is_group_leader?: boolean
   /** AI 작성 도우미 사용 허용 여부. ai-assist.sql 실행 전에는 컬럼이 없어 undefined → 미허용 */
   ai_enabled?: boolean
+  created_at: string
+}
+
+/** 회원이 소속될 수 있는 그룹 (groups.sql) */
+export interface Group {
+  id: string
+  name: string
+  leader_id: string
+  created_at: string
+}
+
+/** 그룹 소속 (groups.sql) */
+export interface GroupMember {
+  id: string
+  group_id: string
+  user_id: string
+  joined_at: string
+}
+
+/** 그룹당 회원가입 시 선택 가능한 최대 그룹 수 */
+export const MAX_GROUPS_PER_MEMBER = 3
+
+/** 그룹리더가 만드는 프로젝트(과제 게시판) (projects.sql) */
+export interface Project {
+  id: string
+  group_id: string
+  title: string
+  description: string | null
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+/** 프로젝트 게시판에 올라오는 제출물 (projects.sql) */
+export interface ProjectPost {
+  id: string
+  project_id: string
+  author_id: string
+  title: string
+  content: string | null
+  image_url: string | null
+  video_url: string | null
+  link_url: string | null
+  link_title: string | null
+  link_description: string | null
+  link_image: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** 프로젝트 게시글에 첨부된 파일 (projects.sql) */
+export interface ProjectPostFile {
+  id: string
+  post_id: string
+  url: string
+  name: string
+  size: number | null
   created_at: string
 }
 
@@ -94,6 +153,23 @@ export type ContentFormat = 'html' | 'markdown'
 /** 도서 구성 방식: 메뉴를 직접 구성 / 완성된 HTML·MD 파일 하나 / PDF 한 개 */
 export type SourceMode = 'menu' | 'single' | 'pdf'
 
+/** 도서 공개 범위: 공개 / 비공개 / 그룹공개 */
+export type BookVisibility = 'public' | 'private' | 'group'
+
+export const BOOK_VISIBILITY_LABELS: Record<BookVisibility, string> = {
+  public: '공개',
+  private: '비공개',
+  group: '그룹공개',
+}
+
+/**
+ * book-visibility.sql 실행 전에는 visibility 컬럼이 없으므로
+ * is_published로 공개/비공개만 대신 판정한다.
+ */
+export function resolveBookVisibility(book: Pick<Book, 'visibility' | 'is_published'>): BookVisibility {
+  return book.visibility ?? (book.is_published ? 'public' : 'private')
+}
+
 export interface Book {
   id: string
   category_id: string | null
@@ -108,6 +184,13 @@ export interface Book {
   content_format?: ContentFormat
   /** single-file.sql 실행 전에는 컬럼이 없어 undefined → 'menu'로 간주 */
   source_mode?: SourceMode
+  /**
+   * 공개 범위. book-visibility.sql 실행 전에는 컬럼이 없어 undefined →
+   * is_published 값으로 공개/비공개만 간주한다.
+   */
+  visibility?: BookVisibility
+  /** 그룹공개일 때 어느 그룹에 공개할지. book-visibility.sql 실행 전에는 undefined */
+  group_id?: string | null
   /**
    * 단일 파일 모드의 파일 주소 (Cloudflare R2). upload-limits.sql 실행 전에는 undefined.
    * PDF와 같은 구조로, 파일 본체는 R2에 있고 DB에는 주소만 둔다.

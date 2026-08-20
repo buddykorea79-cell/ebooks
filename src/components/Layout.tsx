@@ -113,6 +113,11 @@ export default function Layout() {
             <NavLink to="/my" className={navClass}>
               내 서재
             </NavLink>
+            {user && (
+              <NavLink to="/account" className={navClass}>
+                내 정보
+              </NavLink>
+            )}
             {isAdmin === true && (
               <NavLink to="/admin" className={navClass}>
                 관리자

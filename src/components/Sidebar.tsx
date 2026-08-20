@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { Book, BookMenu } from '../types/database'
+import { BOOK_VISIBILITY_LABELS, resolveBookVisibility } from '../types/database'
 import { buildMenuTree, type MenuTreeNode } from '../lib/menuTree'
 import TypeBadge from './TypeBadge'
 
@@ -68,9 +69,15 @@ export default function Sidebar({ book, menus, activeMenuId, onNavigate }: Sideb
         </Link>
         <div className="mt-2">
           <TypeBadge type={book.type} />
-          {!book.is_published && (
-            <span className="ml-1 inline-block rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-500">
-              비공개
+          {resolveBookVisibility(book) !== 'public' && (
+            <span
+              className={`ml-1 inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
+                resolveBookVisibility(book) === 'group'
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-gray-100 text-gray-500'
+              }`}
+            >
+              {BOOK_VISIBILITY_LABELS[resolveBookVisibility(book)]}
             </span>
           )}
         </div>

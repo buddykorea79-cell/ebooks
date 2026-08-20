@@ -18,6 +18,10 @@ const BookViewerPage = lazy(() => import('./pages/BookViewerPage'))
 const DocsPage = lazy(() => import('./pages/DocsPage'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
 const SearchPage = lazy(() => import('./pages/SearchPage'))
+const GroupManagePage = lazy(() => import('./pages/GroupManagePage'))
+const ProjectsPage = lazy(() => import('./pages/ProjectsPage'))
+const ProjectBoardPage = lazy(() => import('./pages/ProjectBoardPage'))
+const AccountPage = lazy(() => import('./pages/AccountPage'))
 
 export default function App() {
   if (!isSupabaseConfigured) {
@@ -43,6 +47,10 @@ export default function App() {
               <Route path="my" element={<MyLibraryPage />} />
               <Route path="book/:bookId/edit" element={<BookEditPage />} />
               <Route path="admin" element={<AdminPage />} />
+              <Route path="groups" element={<GroupManagePage />} />
+              <Route path="projects" element={<ProjectsPage />} />
+              <Route path="projects/:projectId" element={<ProjectBoardPage />} />
+              <Route path="account" element={<AccountPage />} />
             </Route>
           </Route>
           {/* 뷰어는 사이드바 중심의 자체 레이아웃을 사용 */}

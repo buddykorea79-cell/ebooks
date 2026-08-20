@@ -17,6 +17,8 @@ interface AuthContextValue {
   nickname: string | null
   /** 관리자 여부. null이면 아직 판정 전(프로필 조회 중) */
   isAdmin: boolean | null
+  /** 그룹리더 여부 */
+  isGroupLeader: boolean
   /** AI 작성 도우미 사용 허용 여부 (관리자가 회원별로 지정) */
   aiEnabled: boolean
   /**
@@ -35,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [nickname, setNickname] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
+  const [isGroupLeader, setIsGroupLeader] = useState(false)
   const [aiEnabled, setAiEnabled] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -49,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!userId) {
       setNickname(null)
       setIsAdmin(false)
+      setIsGroupLeader(false)
       setAiEnabled(false)
       return
     }
@@ -57,11 +61,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const profile = await fetchProfile(userId)
       if (profile && !metaNickname) setNickname(profile.nickname)
       setIsAdmin(profile?.is_admin === true)
+      // groups.sql 실행 전에는 컬럼이 없어 undefined → 미해당
+      setIsGroupLeader(profile?.is_group_leader === true)
       // ai-assist.sql 실행 전에는 컬럼이 없어 undefined → 미허용
       setAiEnabled(profile?.ai_enabled === true)
     } catch {
       // profiles 테이블이 아직 없어도 앱은 동작해야 함 (이메일로 대체 표시)
       setIsAdmin(false)
+      setIsGroupLeader(false)
       setAiEnabled(false)
     }
   }, [userId, metaNickname])
@@ -98,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, user, nickname, isAdmin, aiEnabled, refreshProfile, loading }}
+      value={{ session, user, nickname, isAdmin, isGroupLeader, aiEnabled, refreshProfile, loading }}
     >
       {children}
     </AuthContext.Provider>

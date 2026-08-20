@@ -1,6 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import type { Book, BookType, Category, ContentFormat, SourceMode } from '../types/database'
+import type { Book, BookType, BookVisibility, Category, ContentFormat, Group, SourceMode } from '../types/database'
+import { BOOK_VISIBILITY_LABELS } from '../types/database'
 import { useBookTypes } from '../api/bookTypes'
+import { fetchMyGroups } from '../api/groups'
+import { useAuth } from '../contexts/AuthContext'
 import ErrorAlert from './ErrorAlert'
 
 export interface BookFormValues {
@@ -11,6 +14,9 @@ export interface BookFormValues {
   source_mode: SourceMode
   /** 단일 파일 모드에서는 업로드한 파일 확장자가 형식을 결정하므로 보내지 않는다 */
   content_format?: ContentFormat
+  visibility: BookVisibility
+  group_id: string | null
+  /** book-visibility.sql 실행 전 DB를 위한 대체값 (visibility === 'public'과 항상 일치) */
   is_published: boolean
 }
 
@@ -33,6 +39,7 @@ export default function BookForm({
   onSubmit,
   onCancel,
 }: BookFormProps) {
+  const { user } = useAuth()
   const types = useBookTypes()
   const [title, setTitle] = useState(initial?.title ?? '')
   const [categoryId, setCategoryId] = useState(initial?.category_id ?? '')
@@ -47,9 +54,21 @@ export default function BookForm({
     if (!type && types.length > 0) setType(types[0].id)
   }, [type, types])
   const [description, setDescription] = useState(initial?.description ?? '')
-  const [isPublished, setIsPublished] = useState(initial?.is_published ?? false)
+  // visibility 컬럼이 아직 없는 DB(book-visibility.sql 실행 전)에서는 is_published로 대신 판정
+  const [visibility, setVisibility] = useState<BookVisibility>(
+    initial?.visibility ?? (initial?.is_published ? 'public' : 'private'),
+  )
+  const [groupId, setGroupId] = useState<string>(initial?.group_id ?? '')
+  const [myGroups, setMyGroups] = useState<Group[]>([])
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!user) return
+    fetchMyGroups(user.id)
+      .then(setMyGroups)
+      .catch(() => setMyGroups([]))
+  }, [user])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -59,6 +78,10 @@ export default function BookForm({
     }
     if (!type) {
       setError('유형을 선택하세요.')
+      return
+    }
+    if (visibility === 'group' && !groupId) {
+      setError('그룹공개로 설정하려면 그룹을 선택하세요.')
       return
     }
     setError(null)
@@ -72,7 +95,9 @@ export default function BookForm({
         source_mode: sourceMode,
         // 단일 파일 모드의 형식은 업로드 시 결정되므로 여기서 덮어쓰지 않는다
         ...(sourceMode === 'menu' ? { content_format: contentFormat } : {}),
-        is_published: isPublished,
+        visibility,
+        group_id: visibility === 'group' ? groupId : null,
+        is_published: visibility === 'public',
       })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -214,15 +239,51 @@ export default function BookForm({
         />
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-gray-700">
-        <input
-          type="checkbox"
-          checked={isPublished}
-          onChange={(e) => setIsPublished(e.target.checked)}
-          className="h-4 w-4"
-        />
-        공개 (체크하면 홈 목록에 노출되고 누구나 볼 수 있습니다)
-      </label>
+      <fieldset>
+        <legend className="block text-sm font-medium text-gray-700">공개 범위</legend>
+        <div className="mt-1 flex flex-col gap-1.5 sm:flex-row sm:gap-4">
+          {(
+            [
+              { value: 'public', hint: '누구나 볼 수 있고 홈 목록에 노출' },
+              { value: 'private', hint: '나만 볼 수 있음' },
+              { value: 'group', hint: '선택한 그룹원과 관리자만 볼 수 있음' },
+            ] as { value: BookVisibility; hint: string }[]
+          ).map((v) => (
+            <label key={v.value} className="flex items-center gap-1.5 text-sm text-gray-700">
+              <input
+                type="radio"
+                name="visibility"
+                value={v.value}
+                checked={visibility === v.value}
+                onChange={() => setVisibility(v.value)}
+                className="h-4 w-4"
+              />
+              {BOOK_VISIBILITY_LABELS[v.value]}
+              <span className="text-xs text-gray-400">({v.hint})</span>
+            </label>
+          ))}
+        </div>
+        {visibility === 'group' && (
+          <div className="mt-2">
+            {myGroups.length === 0 ? (
+              <p className="text-xs text-gray-400">소속된 그룹이 없습니다.</p>
+            ) : (
+              <select
+                value={groupId}
+                onChange={(e) => setGroupId(e.target.value)}
+                className={inputClass}
+              >
+                <option value="">그룹 선택</option>
+                {myGroups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+      </fieldset>
 
       {error && <ErrorAlert message={error} />}
 

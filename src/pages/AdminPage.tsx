@@ -5,7 +5,13 @@ import {
   UPLOAD_MAX_MB_OPTIONS,
   resolveUploadMaxMb,
 } from '../types/database'
-import { fetchAiUsageSummary, fetchProfiles, setUserAdmin, setUserAiEnabled } from '../api/profiles'
+import {
+  fetchAiUsageSummary,
+  fetchProfiles,
+  setUserAdmin,
+  setUserAiEnabled,
+  setUserGroupLeader,
+} from '../api/profiles'
 import { useAuth } from '../contexts/AuthContext'
 import {
   createCategory,
@@ -424,6 +430,26 @@ function MemberManager({ myId }: { myId: string | null }) {
     }
   }
 
+  async function handleToggleGroupLeader(member: Profile) {
+    const makeLeader = member.is_group_leader !== true
+    const message = makeLeader
+      ? `'${member.nickname}' 님에게 그룹리더 권한을 부여할까요?\n그룹을 만들고 그룹원을 관리할 수 있게 됩니다.`
+      : `'${member.nickname}' 님의 그룹리더 권한을 해제할까요?`
+    if (!window.confirm(message)) return
+
+    setBusyId(member.id)
+    setError(null)
+    try {
+      await setUserGroupLeader(member.id, makeLeader)
+      await load()
+      if (member.id === myId) await refreshProfile()
+    } catch (err) {
+      setError(errMsg(err))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   const keyword = query.trim().toLowerCase()
   const filtered = (members ?? []).filter((m) => m.nickname.toLowerCase().includes(keyword))
   const adminCount = (members ?? []).filter((m) => m.is_admin).length
@@ -477,6 +503,7 @@ function MemberManager({ myId }: { myId: string | null }) {
                 const isMe = member.id === myId
                 const isAdminMember = member.is_admin === true
                 const isAiMember = member.ai_enabled === true
+                const isGroupLeaderMember = member.is_group_leader === true
                 const usage = aiUsage[member.id]
                 return (
                   <li key={member.id} className="flex flex-wrap items-center gap-2">
@@ -486,6 +513,11 @@ function MemberManager({ myId }: { myId: string | null }) {
                       {isAdminMember && (
                         <span className="ml-2 inline-block rounded bg-brand-100 px-1.5 py-0.5 text-xs font-medium text-brand-700">
                           관리자
+                        </span>
+                      )}
+                      {isGroupLeaderMember && (
+                        <span className="ml-1.5 inline-block rounded bg-sky-100 px-1.5 py-0.5 text-xs font-medium text-sky-700">
+                          그룹리더
                         </span>
                       )}
                       {isAiMember && (
@@ -500,6 +532,22 @@ function MemberManager({ myId }: { myId: string | null }) {
                           ` · AI ${usage.request_count}회 · ₩${usage.total_cost.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}`}
                       </span>
                     </div>
+                    <button
+                      onClick={() => handleToggleGroupLeader(member)}
+                      disabled={busyId !== null}
+                      title="그룹 생성·관리 권한"
+                      className={`${
+                        isGroupLeaderMember
+                          ? 'rounded border border-sky-300 px-2 py-1 text-xs text-sky-700 hover:bg-sky-50'
+                          : smallBtn
+                      } shrink-0 disabled:opacity-40`}
+                    >
+                      {busyId === member.id
+                        ? '처리 중…'
+                        : isGroupLeaderMember
+                          ? '그룹리더 해제'
+                          : '그룹리더 지정'}
+                    </button>
                     <button
                       onClick={() => handleToggleAi(member)}
                       disabled={busyId !== null}

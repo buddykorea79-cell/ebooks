@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { Book, Category } from '../types/database'
+import { BOOK_VISIBILITY_LABELS, resolveBookVisibility } from '../types/database'
 import { createBook, deleteBook, fetchMyBooks } from '../api/books'
 import { fetchCategories } from '../api/categories'
 import BookForm, { type BookFormValues } from '../components/BookForm'
@@ -120,12 +121,14 @@ export default function MyLibraryPage() {
                   <TypeBadge type={book.type} />
                   <span
                     className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
-                      book.is_published
+                      resolveBookVisibility(book) === 'public'
                         ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-gray-100 text-gray-500'
+                        : resolveBookVisibility(book) === 'group'
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-gray-100 text-gray-500'
                     }`}
                   >
-                    {book.is_published ? '공개' : '비공개'}
+                    {BOOK_VISIBILITY_LABELS[resolveBookVisibility(book)]}
                   </span>
                   <span className="text-xs text-gray-400">{categoryName(book.category_id)}</span>
                 </div>

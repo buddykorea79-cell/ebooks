@@ -87,12 +87,65 @@ const KINDS = {
     } as Record<string, string>,
     reject: 'PNG, JPG, GIF, WebP, AVIF 이미지만 올릴 수 있습니다.',
   },
+  /** 프로젝트 게시판 제출물 — 이미지·동영상·문서·압축파일 등 */
+  project: {
+    folder: 'project',
+    maxBytes: DEFAULT_UPLOAD_MAX_MB * 1024 * 1024,
+    types: {
+      'image/png': 'png',
+      'image/jpeg': 'jpg',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
+      'image/avif': 'avif',
+      'video/mp4': 'mp4',
+      'video/webm': 'webm',
+      'video/quicktime': 'mov',
+      'application/pdf': 'pdf',
+      'application/zip': 'zip',
+      'text/plain': 'txt',
+    } as Record<string, string>,
+    exts: {
+      png: 'png',
+      jpg: 'jpg',
+      jpeg: 'jpg',
+      gif: 'gif',
+      webp: 'webp',
+      avif: 'avif',
+      mp4: 'mp4',
+      webm: 'webm',
+      mov: 'mov',
+      pdf: 'pdf',
+      zip: 'zip',
+      txt: 'txt',
+      doc: 'doc',
+      docx: 'docx',
+      ppt: 'ppt',
+      pptx: 'pptx',
+      xls: 'xls',
+      xlsx: 'xlsx',
+      hwp: 'hwp',
+    } as Record<string, string>,
+    storeAs: {
+      png: 'image/png',
+      jpg: 'image/jpeg',
+      gif: 'image/gif',
+      webp: 'image/webp',
+      avif: 'image/avif',
+      mp4: 'video/mp4',
+      webm: 'video/webm',
+      mov: 'video/quicktime',
+      pdf: 'application/pdf',
+      zip: 'application/zip',
+      txt: 'text/plain; charset=utf-8',
+    } as Record<string, string>,
+    reject: '이미지, 동영상(mp4·webm·mov) 또는 문서·압축 파일만 올릴 수 있습니다.',
+  },
 } as const
 
 type Kind = keyof typeof KINDS
 
 /** 관리자 상한(upload_max_mb)을 따르는 종류 — 이미지는 고정 한도를 쓴다 */
-const ADMIN_LIMITED: Kind[] = ['pdf', 'single']
+const ADMIN_LIMITED: Kind[] = ['pdf', 'single', 'project']
 
 /**
  * 확장자 → Content-Type 순으로 판정한다.
@@ -166,14 +219,20 @@ function safeSlug(name: string): string {
 
 /**
  * 절대 겹치지 않는 키를 만든다.
- *   {userId}/{kind}/{bookId}/{날짜}-{uuid}-{이름}.{확장자}
+ *   {userId}/{kind}/{resourceId}/{날짜}-{uuid}-{이름}.{확장자}
  *
  * 같은 사람이 같은 파일을 같은 밀리초에 여러 번 올려도 uuid가 달라 덮어쓰이지 않는다.
  * (R2는 같은 키로 PUT하면 조용히 덮어쓰므로 이 보장이 중요하다)
  */
-export function buildKey(userId: string, kind: Kind, bookId: string, fileName: string, ext: string) {
+export function buildKey(
+  userId: string,
+  kind: Kind,
+  resourceId: string,
+  fileName: string,
+  ext: string,
+) {
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-  return `${userId}/${KINDS[kind].folder}/${bookId}/${stamp}-${randomUUID()}-${safeSlug(fileName)}.${ext}`
+  return `${userId}/${KINDS[kind].folder}/${resourceId}/${stamp}-${randomUUID()}-${safeSlug(fileName)}.${ext}`
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -219,12 +278,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const rule = KINDS[kind]
 
   const bookId = typeof body.bookId === 'string' ? body.bookId : ''
+  const resourceId = typeof body.resourceId === 'string' ? body.resourceId : ''
+  // project 종류는 bookId 대신 resourceId(=projectId)를 쓴다. 나머지는 기존처럼 bookId.
+  const targetId = kind === 'project' ? resourceId : bookId
   const fileName = typeof body.fileName === 'string' ? body.fileName : 'file'
   const contentType = typeof body.contentType === 'string' ? body.contentType : ''
   const size = typeof body.size === 'number' ? body.size : 0
 
-  if (!bookId) {
-    res.status(400).json({ error: '도서 정보가 없습니다.' })
+  if (!targetId) {
+    res.status(400).json({ error: kind === 'project' ? '프로젝트 정보가 없습니다.' : '도서 정보가 없습니다.' })
     return
   }
   const ext = resolveExt(kind, contentType, fileName)
@@ -264,20 +326,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  // --- 내 도서인지 확인 (남의 도서에 파일을 붙이지 못하게) -------------------
-  const { data: book, error: bookError } = await supabase
-    .from('books')
-    .select('id, owner_id')
-    .eq('id', bookId)
-    .maybeSingle()
+  // --- 자료 접근 권한 확인 -------------------------------------------------
+  // project: 해당 프로젝트를 볼 수 있는 사람(그룹리더/그룹원/관리자)인지는
+  // projects_select RLS 정책이 이미 그대로 판별해 준다 — 조회되면 권한이 있는 것.
+  // 그 외(pdf/single/image): 내가 만든 도서인지 확인 (남의 도서에 파일을 붙이지 못하게)
+  if (kind === 'project') {
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', targetId)
+      .maybeSingle()
 
-  if (bookError) {
-    res.status(500).json({ error: `도서를 확인하지 못했습니다: ${bookError.message}` })
-    return
-  }
-  if (!book || (book as { owner_id?: string }).owner_id !== user.id) {
-    res.status(403).json({ error: '내가 만든 도서에만 파일을 올릴 수 있습니다.' })
-    return
+    if (projectError) {
+      res.status(500).json({ error: `프로젝트를 확인하지 못했습니다: ${projectError.message}` })
+      return
+    }
+    if (!project) {
+      res.status(403).json({ error: '이 프로젝트에 파일을 올릴 권한이 없습니다.' })
+      return
+    }
+  } else {
+    const { data: book, error: bookError } = await supabase
+      .from('books')
+      .select('id, owner_id')
+      .eq('id', targetId)
+      .maybeSingle()
+
+    if (bookError) {
+      res.status(500).json({ error: `도서를 확인하지 못했습니다: ${bookError.message}` })
+      return
+    }
+    if (!book || (book as { owner_id?: string }).owner_id !== user.id) {
+      res.status(403).json({ error: '내가 만든 도서에만 파일을 올릴 수 있습니다.' })
+      return
+    }
   }
 
   // --- 크기 제한 확인 (PDF · HTML · MD 공통) -------------------------------
@@ -306,7 +388,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // --- 서명 URL 발급 -----------------------------------------------------
-  const key = buildKey(user.id, kind, bookId, fileName, ext)
+  const key = buildKey(user.id, kind, targetId, fileName, ext)
   const endpoint = `https://${accountId}.r2.cloudflarestorage.com/${bucket}/${key}`
 
   try {

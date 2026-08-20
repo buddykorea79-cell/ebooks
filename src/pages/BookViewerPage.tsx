@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Book, BookMenu } from '../types/database'
+import { BOOK_VISIBILITY_LABELS, resolveBookVisibility } from '../types/database'
 import { fetchBook } from '../api/books'
 import { fetchMenus } from '../api/menus'
 import { hasSingleContent, loadSingleContent } from '../api/single'
@@ -157,9 +158,15 @@ export default function BookViewerPage() {
             ← 홈
           </Link>
           <TypeBadge type={book.type} />
-          {!book.is_published && (
-            <span className="inline-block shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-500">
-              비공개
+          {resolveBookVisibility(book) !== 'public' && (
+            <span
+              className={`inline-block shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${
+                resolveBookVisibility(book) === 'group'
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-gray-100 text-gray-500'
+              }`}
+            >
+              {BOOK_VISIBILITY_LABELS[resolveBookVisibility(book)]}
             </span>
           )}
           <span className="min-w-0 flex-1 truncate text-sm font-semibold">{book.title}</span>
@@ -212,9 +219,15 @@ export default function BookViewerPage() {
             ← 홈
           </Link>
           <TypeBadge type={book.type} />
-          {!book.is_published && (
-            <span className="inline-block shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-500">
-              비공개
+          {resolveBookVisibility(book) !== 'public' && (
+            <span
+              className={`inline-block shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${
+                resolveBookVisibility(book) === 'group'
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-gray-100 text-gray-500'
+              }`}
+            >
+              {BOOK_VISIBILITY_LABELS[resolveBookVisibility(book)]}
             </span>
           )}
           <span className="min-w-0 truncate text-sm font-semibold">{book.title}</span>

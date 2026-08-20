@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabase'
  * 큰 파일을 통과시킬 수 없기 때문이다.
  */
 
-export type UploadKind = 'pdf' | 'single' | 'image'
+export type UploadKind = 'pdf' | 'single' | 'image' | 'project'
 
 interface SignedUpload {
   uploadUrl: string
@@ -22,10 +22,10 @@ interface SignedUpload {
 const ENDPOINT_MISSING =
   '업로드 엔드포인트(/api/r2-upload-url)를 찾을 수 없습니다. 개발 중이라면 `npm run dev`로 실행했는지, 배포본이라면 Vercel 배포가 끝났는지 확인하세요.'
 
-/** 서명 URL 발급 요청 */
+/** 서명 URL 발급 요청. project 종류는 resourceId가 projectId를 가리킨다 */
 async function requestUploadUrl(
   kind: UploadKind,
-  bookId: string,
+  resourceId: string,
   file: File,
 ): Promise<SignedUpload> {
   const { data } = await supabase.auth.getSession()
@@ -37,7 +37,7 @@ async function requestUploadUrl(
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({
       kind,
-      bookId,
+      ...(kind === 'project' ? { resourceId } : { bookId: resourceId }),
       fileName: file.name,
       contentType: file.type,
       size: file.size,
@@ -103,14 +103,14 @@ export interface UploadResult {
   size: number
 }
 
-/** 서명 URL을 받아 R2에 올리고 공개 URL을 돌려준다 */
+/** 서명 URL을 받아 R2에 올리고 공개 URL을 돌려준다. project 종류는 resourceId가 projectId */
 export async function uploadToR2(
   kind: UploadKind,
-  bookId: string,
+  resourceId: string,
   file: File,
   onProgress?: (percent: number) => void,
 ): Promise<UploadResult> {
-  const signed = await requestUploadUrl(kind, bookId, file)
+  const signed = await requestUploadUrl(kind, resourceId, file)
   // 형식이 애매한 파일(.md는 브라우저가 빈 문자열로 주기도 한다)은 서버가 정한 값을 쓴다
   await putToR2(signed.uploadUrl, file, signed.contentType || file.type || 'application/octet-stream', onProgress)
   return { url: signed.publicUrl, name: file.name, size: file.size }

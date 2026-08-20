@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import type { Book, BookType, ContentFormat, SourceMode } from '../types/database'
+import type { Book, BookType, BookVisibility, ContentFormat, SourceMode } from '../types/database'
 
 export interface BookInput {
   category_id: string | null
@@ -8,7 +8,10 @@ export interface BookInput {
   description?: string | null
   content_format?: ContentFormat
   source_mode?: SourceMode
+  /** book-visibility.sql 실행 전 DB를 위해 항상 함께 보낸다 (visibility === 'public'과 일치시켜서) */
   is_published?: boolean
+  visibility?: BookVisibility
+  group_id?: string | null
 }
 
 export interface BookPatch {
@@ -29,12 +32,15 @@ export interface BookPatch {
   pdf_url?: string | null
   pdf_name?: string | null
   pdf_size?: number | null
+  /** book-visibility.sql 실행 전 DB를 위해 항상 함께 보낸다 (visibility === 'public'과 일치시켜서) */
   is_published?: boolean
+  visibility?: BookVisibility
+  group_id?: string | null
 }
 
 /**
- * 마이그레이션(content-format.sql, single-file.sql, pdf-mode.sql, upload-limits.sql)
- * 전 DB에는 없는 컬럼들
+ * 마이그레이션(content-format.sql, single-file.sql, pdf-mode.sql, upload-limits.sql,
+ * book-visibility.sql) 전 DB에는 없는 컬럼들
  */
 const OPTIONAL_BOOK_COLUMNS = [
   'content_format',
@@ -46,6 +52,8 @@ const OPTIONAL_BOOK_COLUMNS = [
   'pdf_url',
   'pdf_name',
   'pdf_size',
+  'visibility',
+  'group_id',
 ] as const
 
 /**

@@ -1,7 +1,10 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { authErrorMessage, signUpWithEmail } from '../api/auth'
+import { fetchGroups } from '../api/groups'
+import type { Group } from '../types/database'
+import { MAX_GROUPS_PER_MEMBER } from '../types/database'
 
 export default function SignupPage() {
   const { session, loading } = useAuth()
@@ -10,9 +13,25 @@ export default function SignupPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
+  const [groups, setGroups] = useState<Group[]>([])
+  const [groupIds, setGroupIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [needsEmailConfirm, setNeedsEmailConfirm] = useState(false)
+
+  useEffect(() => {
+    fetchGroups()
+      .then(setGroups)
+      .catch(() => setGroups([]))
+  }, [])
+
+  function toggleGroup(id: string) {
+    setGroupIds((prev) => {
+      if (prev.includes(id)) return prev.filter((g) => g !== id)
+      if (prev.length >= MAX_GROUPS_PER_MEMBER) return prev
+      return [...prev, id]
+    })
+  }
 
   if (!loading && session) {
     return <Navigate to="/my" replace />
@@ -37,7 +56,7 @@ export default function SignupPage() {
 
     setSubmitting(true)
     try {
-      const data = await signUpWithEmail(email, password, nickname.trim())
+      const data = await signUpWithEmail(email, password, nickname.trim(), groupIds)
       // 이메일 인증이 켜져 있으면 기존 가입 이메일에 대해 identities가 빈 배열로 온다
       if (data.user && data.user.identities && data.user.identities.length === 0) {
         setError('이미 가입된 이메일입니다.')
@@ -138,6 +157,27 @@ export default function SignupPage() {
             className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
           />
         </div>
+        {groups.length > 0 && (
+          <div>
+            <span className="block text-sm font-medium text-gray-700">
+              그룹 선택 <span className="text-xs text-gray-400">(선택, 최대 {MAX_GROUPS_PER_MEMBER}개)</span>
+            </span>
+            <div className="mt-1.5 flex flex-col gap-1.5 rounded border border-gray-200 p-2.5">
+              {groups.map((g) => (
+                <label key={g.id} className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={groupIds.includes(g.id)}
+                    onChange={() => toggleGroup(g.id)}
+                    disabled={!groupIds.includes(g.id) && groupIds.length >= MAX_GROUPS_PER_MEMBER}
+                    className="h-4 w-4"
+                  />
+                  {g.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
         {error && (
           <div className="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
             {error}

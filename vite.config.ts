@@ -6,6 +6,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { bearerToken, envFrom, readJsonBody, runAi } from './api/ai'
 import r2UploadUrlHandler from './api/r2-upload-url'
+import ogPreviewHandler from './api/og-preview'
 
 /**
  * 로컬 개발용 API 엔드포인트.
@@ -62,6 +63,25 @@ function devApiEndpoints(env: Record<string, string>): Plugin {
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err)
           shim.status(500).json({ error: `업로드 준비 중 오류가 발생했습니다: ${message}` })
+        }
+      })
+
+      server.middlewares.use('/api/og-preview', async (req, res) => {
+        const shim = Object.assign(res, {
+          status(code: number) {
+            res.statusCode = code
+            return shim
+          },
+          json(body: unknown) {
+            res.setHeader('Content-Type', 'application/json; charset=utf-8')
+            res.end(JSON.stringify(body))
+          },
+        })
+        try {
+          await ogPreviewHandler(req as never, shim as never)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          shim.status(500).json({ error: `미리보기 처리 중 오류가 발생했습니다: ${message}` })
         }
       })
     },
